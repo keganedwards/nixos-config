@@ -1,0 +1,9 @@
+creation_rules:
+  - path_regex: .*.yaml$
+    key_groups:
+    - age:
+      - age1y78nv5utj7auuyr6878ztydtyyavsw2f22pw3er6tjnq0jfc4pmsderwsv
+  - path_regex: secrets/user-ssh-key$
+    key_groups:
+    - age:
+      - age1y78nv5utj7auuyr6878ztydtyyavsw2f22pw3er6tjnq0jfc4pmsderwsv
