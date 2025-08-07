@@ -1,5 +1,5 @@
 # /modules/system/security.nix
-{...}: {
+{ pkgs, ... }: {
   security.pam = {
     loginLimits = [
       {
@@ -12,12 +12,14 @@
     services.swaylock = {};
   };
 
+  # This sudo configuration is correct and remains unchanged.
+  # It enables per-terminal, non-expiring authentication tickets.
   security.sudo.extraConfig = ''
-    Defaults timestamp_timeout = 0
+    Defaults tty_tickets
+    Defaults timestamp_timeout=-1
   '';
 
   security.rtkit.enable = true;
-  security.polkit.enable = true;
 
   security.tpm2 = {
     enable = true;

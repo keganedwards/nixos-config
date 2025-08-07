@@ -9,7 +9,8 @@ in
 
   swapDevices = [ { device = "/swapfile"; size = 16; } ];
 
-  # This block provides the data to your restored, working boot.nix module.
+  # This block is all you need. Your custom module will read this
+  # and generate the correct boot.initrd.luks.devices and boot.initrd.clevis.devices.
   custom.boot.luksPartitions = {
     root = {
       luksName = laptopRootLuksName;
