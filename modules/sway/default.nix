@@ -1,11 +1,6 @@
 # /opt/nixos-config/modules/nixos/sway/default.nix
 # This is a MIXED module. It configures both NixOS and Home Manager.
-{
-  config,
-  pkgs,
-  username,
-  ...
-}: {
+{username, ...}: {
   # --- Part 1: System-Level Configuration (for NixOS) ---
   # This part tells NixOS to enable the Home Manager integration for Sway.
   programs.sway = {
@@ -13,6 +8,10 @@
     # As requested, this is set to an empty list.
     extraPackages = [];
   };
+
+  imports = [
+    ./greetd.nix
+  ];
 
   # --- Part 2: User-Level Configuration (for Home Manager) ---
   # This block attempts to inject the HM configuration without receiving any arguments.
