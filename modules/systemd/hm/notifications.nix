@@ -1,4 +1,3 @@
-# modules/home-manager/power-management/notifications.nix
 {
   lib,
   pkgs,

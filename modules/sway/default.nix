@@ -20,6 +20,8 @@
       ./hm-base.nix
       ./hm-startup.nix
       ./hm-workspaces.nix
+      ./hm-logout.nix
+      ./hm-lock-screen.nix
     ];
   };
 }

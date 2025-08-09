@@ -10,7 +10,7 @@
     };
     nix-flatpak = {
       url = "github:gmodena/nix-flatpak?ref=latest";
-         };
+    };
     nvf = {
       url = "github:notashelf/nvf";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -100,7 +100,7 @@
               argsBase.catppuccin.nixosModules.catppuccin
               ./modules
               hostParams.path
-              { home-manager.extraSpecialArgs = argsBase; }
+              {home-manager.extraSpecialArgs = argsBase;}
             ];
           }
       )

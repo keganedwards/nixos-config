@@ -43,7 +43,6 @@
       ./apps
       ./desktop-entries.nix
       ./packages-static.nix
-      ./power-management
       ./screenshot-configuration.nix
     ];
   };
