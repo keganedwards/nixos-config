@@ -9,6 +9,8 @@
     #!${pkgs.bash}/bin/bash
     WALLPAPER="$HOME/.local/share/wallpapers/Bing/lockscreen.jpg"
 
+    COREUTILS_BIN=${pkgs.coreutils}/bin
+
     calculate_delay() {
       local attempts=$1
       (( attempts >= 141 )) && echo $((24*3600)) && return
@@ -20,9 +22,9 @@
     }
 
     while true; do
-      TEMP_LOG=$(mktemp)
-      FAILURE_COUNT_FILE=$(mktemp)
-      echo 0 > "$FAILURE_COUNT_FILE"
+      TEMP_LOG=$($COREUTILS_BIN/mktemp)
+      FAILURE_COUNT_FILE=$($COREUTILS_BIN/mktemp)
+      $COREUTILS_BIN/echo 0 > "$FAILURE_COUNT_FILE"
 
       if [[ -f "$WALLPAPER" ]]; then
         ${pkgs.swaylock}/bin/swaylock --image "$WALLPAPER" --font "Fira Code" --show-failed-attempts 2> "$TEMP_LOG" &
@@ -34,9 +36,9 @@
       (
         tail -f "$TEMP_LOG" | while read -r line; do
           if [[ "$line" == *"pam_authenticate failed"* ]]; then
-            current=$(cat "$FAILURE_COUNT_FILE")
+            current=$($COREUTILS_BIN/cat "$FAILURE_COUNT_FILE")
             current=$((current + 1))
-            echo "$current" > "$FAILURE_COUNT_FILE"
+            $COREUTILS_BIN/echo "$current" > "$FAILURE_COUNT_FILE"
             DELAY=$(calculate_delay "$current")
             if [[ "$DELAY" -gt 0 ]]; then
               kill "$SWAYLOCK_PID"
@@ -51,10 +53,10 @@
       SWAYLOCK_EXIT_CODE=$?
 
       kill "$MONITOR_PID" 2>/dev/null || true
-      rm -f "$TEMP_LOG"
+      $COREUTILS_BIN/rm -f "$TEMP_LOG"
 
-      failure_count=$(cat "$FAILURE_COUNT_FILE")
-      rm -f "$FAILURE_COUNT_FILE"
+      failure_count=$($COREUTILS_BIN/cat "$FAILURE_COUNT_FILE")
+      $COREUTILS_BIN/rm -f "$FAILURE_COUNT_FILE"
 
       if [[ "$SWAYLOCK_EXIT_CODE" -eq 0 ]]; then
         break
