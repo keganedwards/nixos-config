@@ -22,9 +22,12 @@
       fi
       shift
 
-      # --- Verification logic is REMOVED from this script ---
-      # It now trusts that its caller has provided a verified commit hash.
+      if [ $# -eq 0 ]; then
+        echo "Error: No rebuild action provided (test, switch, boot, etc.)"
+        exit 1
+      fi
 
+      # This script trusts that its caller has provided a verified commit hash
       FLAKE_URI="git+file://${flakeDir}?rev=$TARGET_COMMIT"
 
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -45,7 +48,6 @@
     '')
   ];
 
-  # Sudo rules remain the same
   security.sudo.extraRules = [
     {
       users = [username];

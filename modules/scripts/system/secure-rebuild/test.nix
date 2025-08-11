@@ -1,3 +1,4 @@
+# /scripts/system/test.nix
 {
   pkgs,
   username,
@@ -7,7 +8,6 @@
   definitionsDir = "${flakeDir}/modules/home-manager/apps/definitions";
 in {
   home-manager.users.${username} = {
-    # Enable git delta for better diffs
     programs.git = {
       enable = true;
       delta.enable = true;
@@ -37,6 +37,11 @@ in {
           fi
         }
 
+        compute_checksum() {
+          find . -type f \( -name "*.nix" -o -name "*.toml" -o -name "*.lock" \) \
+            -not -path "./.git/*" -exec sha256sum {} \; | sort | sha256sum | cut -d' ' -f1
+        }
+
         # --- Parse Arguments ---
         force_rebuild=0
         while [[ $# -gt 0 ]]; do
@@ -63,6 +68,9 @@ in {
           echo ":: Uncommitted changes detected."
           echo
 
+          # Compute checksum before showing diff
+          checksum_before=$(compute_checksum)
+
           # Show the diff using git delta
           ${pkgs.git}/bin/git diff --color=always | ${pkgs.less}/bin/less -R
 
@@ -78,9 +86,6 @@ in {
           echo
 
           if [[ $REPLY =~ ^[Yy]$ ]]; then
-            # Stage all changes
-            ${pkgs.git}/bin/git add .
-
             # Get commit message
             echo "Enter commit message (or press Ctrl+C to cancel):"
             read -r commit_msg
@@ -91,11 +96,50 @@ in {
               exit 1
             fi
 
+            # Verify files haven't changed since diff
+            checksum_after=$(compute_checksum)
+            if [ "$checksum_before" != "$checksum_after" ]; then
+              notify "❌ Files changed during review!" critical
+              echo "❌ Error: Files were modified after showing diff. Aborting for security." >&2
+              exit 1
+            fi
+
+            # Stage all changes
+            ${pkgs.git}/bin/git add .
+
+            # Verify checksum again after git add
+            checksum_staged=$(compute_checksum)
+            if [ "$checksum_before" != "$checksum_staged" ]; then
+              notify "❌ Files changed during staging!" critical
+              echo "❌ Error: Files were modified during staging. Aborting for security." >&2
+              ${pkgs.git}/bin/git reset
+              exit 1
+            fi
+
             ${pkgs.git}/bin/git commit -m "$commit_msg"
           else
             # Amend to previous commit
             echo ":: Amending changes to previous commit..."
+
+            # Verify files haven't changed since diff
+            checksum_after=$(compute_checksum)
+            if [ "$checksum_before" != "$checksum_after" ]; then
+              notify "❌ Files changed during review!" critical
+              echo "❌ Error: Files were modified after showing diff. Aborting for security." >&2
+              exit 1
+            fi
+
             ${pkgs.git}/bin/git add .
+
+            # Verify checksum again after git add
+            checksum_staged=$(compute_checksum)
+            if [ "$checksum_before" != "$checksum_staged" ]; then
+              notify "❌ Files changed during staging!" critical
+              echo "❌ Error: Files were modified during staging. Aborting for security." >&2
+              ${pkgs.git}/bin/git reset
+              exit 1
+            fi
+
             ${pkgs.git}/bin/git commit --amend --no-edit
           fi
 
@@ -116,7 +160,7 @@ in {
           echo "✅ Force flag detected. Proceeding with rebuild."
         fi
 
-        # --- Get current commit hash ---
+        # --- Get last valid commit hash ---
         TARGET_COMMIT=$(${pkgs.git}/bin/git rev-parse HEAD)
         echo ":: Building from commit: ''${TARGET_COMMIT:0:7}"
 
@@ -143,15 +187,24 @@ in {
 
         # --- Build using secure-rebuild ---
         echo ":: Starting NixOS test build..."
-        if sudo /run/current-system/sw/bin/secure-rebuild "$TARGET_COMMIT" test; then
+        if sudo -n /run/current-system/sw/bin/secure-rebuild "$TARGET_COMMIT" test 2>/dev/null; then
           notify "✅ Test build successful!"
           reload_sway
           source_fish
           echo "✅ Test build completed successfully!"
         else
-          notify "❌ Test build failed!" critical
-          echo "❌ Test build failed!" >&2
-          exit 1
+          # sudo -n failed, need password
+          echo ":: Sudo access required for secure rebuild"
+          if sudo /run/current-system/sw/bin/secure-rebuild "$TARGET_COMMIT" test; then
+            notify "✅ Test build successful!"
+            reload_sway
+            source_fish
+            echo "✅ Test build completed successfully!"
+          else
+            notify "❌ Test build failed!" critical
+            echo "❌ Test build failed!" >&2
+            exit 1
+          fi
         fi
       '')
     ];
