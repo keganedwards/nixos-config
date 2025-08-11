@@ -5,7 +5,6 @@
     ./git-tui.nix
     ./fancy-git.nix
     ./menu.nix
-    ./ssh.nix
     ./multiplexer.nix
   ];
 }
