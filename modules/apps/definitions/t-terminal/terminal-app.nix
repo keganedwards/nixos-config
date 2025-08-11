@@ -15,7 +15,7 @@
 in {
   type = "nix";
   id = constants.terminalName;
-  appId = constants.terminalName;
+  appId = "terminal";
   key = "t";
 
   # Use the multiplexer launcher

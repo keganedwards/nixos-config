@@ -1,10 +1,7 @@
 # File: modules/home-manager/apps/definitions/f-gitui.nix
 {
-  lib,
   pkgs,
-  config,
   constants,
-  helpers,
   ...
 }: {
   f-gitui = {
