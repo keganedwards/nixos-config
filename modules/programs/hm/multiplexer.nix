@@ -27,27 +27,29 @@
     baseIndex = 3;
     keyMode = "vi";
     newSession = false;
-    terminal = "tmux-256color"; # Add this
+    terminal = "tmux-256color";
 
     extraConfig = ''
       # Ensure proper color support
       set -g default-terminal "tmux-256color"
       set -ga terminal-overrides ",*256col*:Tc"
-      set -ga terminal-overrides ",foot:RGB"  # Add this for foot terminal
+      set -ga terminal-overrides ",foot:RGB"
 
       # Set pane base index to match window base index for consistency
       setw -g pane-base-index ${builtins.toString config.programs.tmux.baseIndex};
 
       # --- IMPORTANT for Sway IPC (and other graphical session info) ---
-      # Ensure environment variables from the graphical session are passed into tmux
       set-option -g update-environment "DISPLAY WAYLAND_DISPLAY SWAYSOCK SSH_AUTH_SOCK XAUTHORITY XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME XDG_CURRENT_DESKTOP XDG_SESSION_TYPE LANG LC_ALL LANGUAGE TERM COLORTERM NIXOS_OZONE_WL GTK_THEME QT_STYLE_OVERRIDE"
 
       # --- Status Bar Customization ---
-      # Remove content from the right side of the status bar
       set-option -g status-right ""
 
       # --- Custom Key Bindings ---
+      # These are "no-prefix" for quick window switching
       ${altFKeyWindowBindings}
+
+      # Close current window/tab instantly with Alt+Delete (no confirmation)
+      bind-key -n M-Delete kill-window
 
       # --- Scrollback configuration for foot terminal ---
       bind-key -n S-PPage copy-mode -u
