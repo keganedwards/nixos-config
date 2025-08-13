@@ -1,91 +1,50 @@
-# File: ~/.dotfiles/.pre-commit-config.yaml
-
-# See https://pre-commit.com for more information
-# See https://pre-commit.com/hooks.html for more hooks
-
-# Minimum pre-commit version requirement (optional but good practice)
-# minimum_pre_commit_version: '2.9.0'
-
 repos:
-# ====== Secrets Detection ======
-- repo: https://github.com/Yelp/detect-secrets
-  rev: v1.5.0 # Or check for the latest stable release tag
-  hooks:
-  - id: detect-secrets
-    name: Detect Secrets (Baseline Scan)
-    args: ['--baseline', '.secrets.baseline']
-    # ADD DEPENDENCY for better filtering
-    additional_dependencies:
-    - gibberish-detector==0.1.1 # Use the latest version actually available on PyPI
-    # IMPORTANT: Exclude already encrypted SOPS files and the baseline itself
-    # Adjust the path if your secrets directory is different.
-    exclude: |
-      (?x)^(
-          nixos/secrets/.*\.(enc|yaml)| # Exclude encrypted SOPS files
-          \.secrets\.baseline|          # Exclude the baseline file
-          .*\.lock                     # Exclude lock files (like flake.lock)
-      )$
+  # ====== Secrets ======
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0 # Use latest stable tag
+    hooks:
+      - id: detect-secrets
+        name: Detect Secrets (Baseline)
+        args: ["--baseline", ".secrets.baseline"]
+        additional_dependencies: ["gibberish-detector==0.1.1"]
+        exclude: |
+          (?x)^(
+              nixos/secrets/.*\.(enc|yaml)|
+              \.secrets\.baseline|
+              .*\.lock
+          )$
 
-- repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: v4.6.0 # Use the latest stable release tag
-  hooks:
-  # --- Specific Secret/Key Checks ---
-  - id: detect-private-key
-    name: Detect Private Keys (SSH, PGP, PKCS8, etc.)
-    # This hook is good at finding common private key formats, including age keys sometimes.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0 # Use latest stable tag
+    hooks:
+      - id: detect-private-key # Find private keys
 
-# ====== General File & Code Hygiene ======
-# (These hooks are from the standard pre-commit collection)
-- repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: v4.6.0 # Use the same rev as above
-  hooks:
-  # --- Prevent common Git mistakes ---
-  - id: check-added-large-files
-    name: Check for large files added
-    args: ['--maxkb=1024'] # Adjust max size in KB if needed (1MB here)
-  - id: check-case-conflict
-    name: Check for files that would conflict on case-insensitive filesystems
-  - id: check-merge-conflict
-    name: Check for files that contain merge conflict strings
-  - id: check-symlinks
-    name: Checks for symlinks which do not point to anything
-  - id: forbid-new-submodules
-    name: Forbid adding new Git submodules
+  # ====== General Hygiene ======
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0 # Use latest stable tag
+    hooks:
+      # Git checks
+      - id: check-added-large-files
+        args: ["--maxkb=1024"] # 1MB max
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: forbid-new-submodules
+      # File consistency
+      - id: end-of-file-fixer
+        exclude: "nixos/flake.lock"
+      - id: trailing-whitespace
+        exclude: "nixos/flake.lock"
+      # File syntax
+      - id: check-yaml
+        exclude: ".secrets.baseline"
+      - id: check-json
+        exclude: '.*\.lock'
+      - id: check-toml
 
-  # --- File Formatting & Consistency ---
-  - id: end-of-file-fixer
-    name: Ensure files end in a newline
-    exclude: 'nixos/flake.lock' # <-- Exclude flake.lock
-  - id: trailing-whitespace
-    name: Trim trailing whitespace
-    exclude: 'nixos/flake.lock' # <-- Exclude flake.lock
-  - id: check-yaml
-    name: Check YAML files for parseable syntax
-    # Exclude files known not to be standard YAML if necessary
-    exclude: '.secrets.baseline' # Baseline might not always be strict YAML
-  - id: check-json
-    name: Check JSON files for parseable syntax
-    # Useful for things like VSCode settings, etc.
-    exclude: '.*\.lock' # Exclude flake.lock (already covered *.lock)
-  - id: check-toml
-    name: Check TOML files for parseable syntax
-
-  # --- Shell Script Checks (Optional but Recommended) ---
-  # Uncomment if you write shell scripts in your dotfiles
-  # - id: check-executables-have-shebangs
-  #   name: Check that executable files have a shebang
-  # - id: check-shebang-scripts-are-executable
-  #   name: Check that files with shebangs are executable
-  # - repo: https://github.com/shellcheck-py/shellcheck-py
-  #   rev: v0.10.0.1 # Use latest stable
-  #   hooks:
-  #   - id: shellcheck
-  #     name: ShellCheck
-
-# ====== Nix Formatting (Optional but Recommended) ======
-# Uncomment if you want to enforce Nix formatting
-# - repo: https://github.com/nix-community/nixpkgs-fmt
-#   rev: v1.3.0 # Use latest stable
-#   hooks:
-#   - id: nixpkgs-fmt
-#     name: Format Nix files
+  # ====== Nix ======
+  - repo: https://github.com/astro/deadnix
+    rev: v1.3.1 # Use latest stable tag
+    hooks:
+      - id: deadnix
+        name: Find unused Nix code
