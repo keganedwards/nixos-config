@@ -23,6 +23,10 @@
       url = "github:catppuccin/nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    pre-commit-hooks = {
+      url = "github:cachix/git-hooks.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = inputs @ {
@@ -33,6 +37,7 @@
     nix-flatpak,
     catppuccin,
     nvf,
+    pre-commit-hooks,
   }: let
     stateVersion = "23.11";
 
@@ -105,9 +110,49 @@
           }
       )
       hosts;
+
+    supportedSystems = ["x86_64-linux" "aarch64-linux"];
+    forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
   in {
     inherit nixosConfigurations;
+
+    checks = forAllSystems (system: {
+      pre-commit-check = pre-commit-hooks.lib.${system}.run {
+        src = ./.;
+        hooks = {
+          # Secret Detection
+          ripsecrets.enable = true;
+          detect-private-keys.enable = true;
+
+          # Git & File Hygiene
+          check-added-large-files.enable = true;
+          check-case-conflicts.enable = true;
+          check-merge-conflicts.enable = true;
+          check-symlinks.enable = true;
+          forbid-new-submodules.enable = true;
+
+          # File Formatting
+          end-of-file-fixer.enable = true;
+          trim-trailing-whitespace.enable = true;
+
+          # File Syntax Checks
+          check-json.enable = true;
+          check-toml.enable = true;
+
+          # Nix
+          deadnix.enable = true;
+
+          # Spellchecker
+          typos.enable = true;
+        };
+      };
+    });
+
+    devShells = forAllSystems (system: {
+      default = nixpkgs.legacyPackages.${system}.mkShell {
+        inherit (self.checks.${system}.pre-commit-check) shellHook;
+        buildInputs = self.checks.${system}.pre-commit-check.enabledPackages;
+      };
+    });
   };
 }
-# Test comment Mon Aug 11 06:22:21 PM EDT 2025
-# Test comment Mon Aug 11 06:23:49 PM EDT 2025
