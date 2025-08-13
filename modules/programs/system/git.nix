@@ -8,15 +8,15 @@
 }: let
   sshPassphraseSecretFile = config.sops.secrets."ssh-key-passphrase".path;
 
-  # Create an askpass script
+  # A simple script that uses the standard, secure sudo wrapper.
   ssh-askpass = pkgs.writeShellScriptBin "ssh-askpass" ''
     #!${pkgs.stdenv.shell}
     exec /run/wrappers/bin/sudo ${pkgs.coreutils}/bin/cat ${sshPassphraseSecretFile}
   '';
 in {
-  environment.systemPackages = [ssh-askpass];
-
   home-manager.users.${username} = {
+    home.packages = [ssh-askpass];
+
     programs.git = {
       enable = true;
       userName = fullName;
@@ -31,17 +31,17 @@ in {
       };
     };
 
-    programs.ssh = {
-      enable = true;
-      addKeysToAgent = "no";
-      extraConfig = ''
-        ForwardAgent no
-        IdentityAgent none
-      '';
-    };
+    programs.ssh.enable = true;
 
-    # Set SSH_ASKPASS in the user's environment
+    # This is the definitive fix for the email identity problem.
+    # It uses the input variables instead of hardcoded strings.
     home.sessionVariables = {
+      GIT_AUTHOR_NAME = fullName;
+      GIT_AUTHOR_EMAIL = email;
+      GIT_COMMITTER_NAME = fullName;
+      GIT_COMMITTER_EMAIL = email;
+
+      # These variables enable the automatic password prompt for signing.
       SSH_ASKPASS = "${ssh-askpass}/bin/ssh-askpass";
       SSH_ASKPASS_REQUIRE = "force";
     };
