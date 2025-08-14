@@ -1,10 +1,4 @@
-{
-  config,
-  pkgs,
-  lib,
-  hostContext,
-  ...
-}: let
+{pkgs, ...}: let
   # Script to check KDE Connect device status and notify on disconnect/connect
   monitorScript = pkgs.writeShellApplication {
     name = "kdeconnect-monitor-check";

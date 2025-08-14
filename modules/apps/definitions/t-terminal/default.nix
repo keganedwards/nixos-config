@@ -2,7 +2,6 @@
 {
   pkgs,
   constants,
-  config,
   ...
 }: let
   # Import the terminal configuration logic

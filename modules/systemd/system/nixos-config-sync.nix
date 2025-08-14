@@ -11,7 +11,7 @@
 
   # Extract apps that need VPN
   vpnApps = lib.filterAttrs (
-    name: app: (app.vpn or {}).enabled or false
+    _name: app: (app.vpn or {}).enabled or false
   ) (hmConfig.applications or {});
 
   # Get the user's primary group

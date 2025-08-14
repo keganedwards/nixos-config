@@ -35,7 +35,7 @@ in {
 
     boot.initrd.luks.devices =
       lib.mapAttrs'
-      (partitionName: partitionCfg:
+      (_partitionName: partitionCfg:
         lib.nameValuePair partitionCfg.luksName {
           device = partitionCfg.devicePath;
         })
@@ -45,7 +45,7 @@ in {
       enable = true;
       devices =
         lib.mapAttrs'
-        (partitionName: partitionCfg:
+        (_partitionName: partitionCfg:
           lib.nameValuePair partitionCfg.luksName {
             secretFile = jweFilePath;
           })

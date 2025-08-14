@@ -1,7 +1,5 @@
 # /modules/system/sops.nix
 {
-  lib,
-  config,
   self,
   username,
   ...

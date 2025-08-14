@@ -10,7 +10,6 @@ with lib; let
 
   vpnAppOptions = {
     name,
-    config,
     ...
   }: {
     options = {

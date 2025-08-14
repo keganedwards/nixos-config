@@ -5,7 +5,7 @@
 }: let
   # Collect autostart entries from config.applications
   entries = lib.mapAttrsToList (
-    appKey: appConfig:
+    _appKey: appConfig:
     # Only include apps with an integer priority and launch command
       if lib.isInt appConfig.autostartPriority && appConfig.launchCommand != null
       then {

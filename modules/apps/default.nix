@@ -150,7 +150,7 @@
   };
   derivedPackagesInfo = import ./packages-app-derived.nix packagesDerivedConfig;
 
-  appSpecificFlatpakOverrides = lib.foldl lib.recursiveUpdate {} (lib.mapAttrsToList (appKey: appConfig:
+  appSpecificFlatpakOverrides = lib.foldl lib.recursiveUpdate {} (lib.mapAttrsToList (_appKey: appConfig:
     if appConfig.type == "flatpak" && appConfig.flatpakOverride != null && appConfig.appInfo.package != null
     then {"${appConfig.appInfo.package}" = appConfig.flatpakOverride;}
     else {})
@@ -173,8 +173,8 @@ in {
       then val topLevelModuleArgs.config
       else val;
 
-    packagesFromProcessedApps = lib.flatten (lib.mapAttrsToList (appKey: app: app.homePackages or []) processedApplications);
-    resolvedOtherGlobals = lib.mapAttrs (name: value: resolveConfig value) otherGlobalConfigsFromAppDefs;
+    packagesFromProcessedApps = lib.flatten (lib.mapAttrsToList (_appKey: app: app.homePackages or []) processedApplications);
+    resolvedOtherGlobals = lib.mapAttrs (_name: value: resolveConfig value) otherGlobalConfigsFromAppDefs;
 
     directGlobalPackages = resolvedOtherGlobals.home.packages or [];
     globalFlatpakOverrides = resolvedOtherGlobals.services.flatpak.overrides or {};

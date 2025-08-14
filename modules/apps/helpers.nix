@@ -53,7 +53,6 @@ in {
       then "--cwd ${lib.escapeShellArg cwd}"
       else "";
     finalCommandArgs = lib.trim (userCommandArgs + " " + cwdArg);
-    termArgs = resolve (args.termArgs or "");
     homePackagesFromArgs = resolve (args.appDefHomePackages or []);
 
     # --- THIS IS THE CORRECTED LINE ---

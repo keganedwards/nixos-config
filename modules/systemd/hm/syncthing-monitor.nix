@@ -1,8 +1,5 @@
 {
-  config,
   pkgs,
-  lib,
-  hostContext,
   ...
 }: let
   # Script to check Syncthing logs and notify on issues

@@ -16,7 +16,7 @@
   applications = lib.mkOption {
     description = "Attribute set defining all configured and processed applications. Each key is a unique application identifier (appKey).";
     default = {}; # Default to an empty set of applications
-    type = lib.types.attrsOf (lib.types.submodule (appKeyArgs: {
+    type = lib.types.attrsOf (lib.types.submodule (_appKeyArgs: {
       # appKeyArgs.name is the appKey (e.g., "signal", "eTextEditor")
       # appKeyArgs.config is the full attrset for this app entry
       options = {
@@ -112,7 +112,6 @@
 
         appInfo = lib.mkOption {
           type = lib.types.submodule ({
-            config,
             name,
             ...
           }: {
@@ -169,8 +168,6 @@
 
         desktopFile = lib.mkOption {
           type = lib.types.submodule ({
-            config,
-            name,
             ...
           }: {
             # name here is desktopFile

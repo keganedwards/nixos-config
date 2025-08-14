@@ -6,7 +6,7 @@
   ...
 }: let
   vpnApps = lib.filterAttrs (
-    name: app:
+    _name: app:
       (app.vpn or {}).enabled or false
   ) (config.applications or {});
 
@@ -22,7 +22,7 @@
     }
 
     case "$APP_NAME" in
-      ${lib.concatStringsSep "\n" (lib.mapAttrsToList (name: app: ''
+      ${lib.concatStringsSep "\n" (lib.mapAttrsToList (name: _app: ''
         ${name})
           SERVICE_NAME="vpn-app-$(sanitize "${name}")"
           echo "Starting $SERVICE_NAME..."
