@@ -140,8 +140,10 @@
           check-toml.enable = true;
 
           # Nix
-          deadnix.enable = true;
-
+          deadnix = {
+            enable = true;
+            settings.edit = true;
+          };
           # Spellchecker
           typos.enable = true;
         };
