@@ -109,14 +109,14 @@
               innerAcc // {"${mimeType}" = [targetDesktopFile];}
           )
           acc # Start inner fold with the current accumulator
-          
+
           desktopConfig.defaultAssociations # Use camelCase
         else
           # Skip this app (not a default handler or required info was missing resulting in targetDesktopFile being null)
           acc # Return the accumulator unchanged
     )
     {} # Start outer fold with an empty attribute set for the final result
-    
+
     appsInfoList; # Process the flattened list of all apps
 in {
   # --- Configure xdg.mimeApps ---
