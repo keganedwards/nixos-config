@@ -75,7 +75,7 @@
       flakeConstants = import ./flake-constants.nix {
         lib = nixpkgs.lib;
         pkgs = nixpkgs.legacyPackages.${system};
-        inherit stateVersion hostname;
+        inherit stateVersion email hostname;
       };
     };
 

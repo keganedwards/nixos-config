@@ -58,13 +58,11 @@
 
       LATEST_HASH=$(runuser -u ${username} -- $GIT_CMD rev-parse HEAD)
 
-      log_info "Verifying signature of new commit: ''${LATEST_HASH:0:7}"
-      if ! runuser -u ${username} -- $GIT_CMD verify-commit "$LATEST_HASH"; then
-        log_error "FATAL: The commit just created could not be verified. Aborting."; exit 1
-      fi
-      log_success "Signature verified."
+      log_info "New commit created: ''${LATEST_HASH:0:7}"
+      log_success "Commit signature will be verified by secure-rebuild."
 
       log_info "Building new system generation and setting it as default for next boot..."
+      # secure-rebuild will verify the signature - runs as root with bypass flag
       /run/current-system/sw/bin/secure-rebuild "$LATEST_HASH" boot
       log_success "System build complete."
     else
@@ -102,6 +100,11 @@
     fi
   '';
 in {
+  # Enable nh for improved NixOS rebuild UX
+  programs.nh = {
+    enable = true;
+  };
+
   # This declaratively configures the system-wide git config (/etc/gitconfig).
   # The root user inherits this, trusting your flake repo when nixos-rebuild uses git.
   programs.git = {
@@ -110,22 +113,6 @@ in {
       safe.directory = flakeDir;
     };
   };
-
-  security.sudo.extraRules = [
-    {
-      users = [username];
-      commands = [
-        {
-          command = "${pkgs.systemd}/bin/systemctl start upgrade-and-reboot.service";
-          options = ["NOPASSWD"];
-        }
-        {
-          command = "${pkgs.systemd}/bin/systemctl start upgrade-and-shutdown.service";
-          options = ["NOPASSWD"];
-        }
-      ];
-    }
-  ];
 
   systemd.services = {
     "upgrade-and-reboot" = {
@@ -159,6 +146,23 @@ in {
       };
     };
   };
+
+  # User needs sudo to start the systemd services (single password prompt)
+  security.sudo-rs.extraRules = [
+    {
+      users = [username];
+      commands = [
+        {
+          command = "${pkgs.systemd}/bin/systemctl start upgrade-and-reboot.service";
+          options = ["NOPASSWD"];
+        }
+        {
+          command = "${pkgs.systemd}/bin/systemctl start upgrade-and-shutdown.service";
+          options = ["NOPASSWD"];
+        }
+      ];
+    }
+  ];
 
   home-manager.users.${username}.home.packages = [
     (pkgs.writeShellApplication {

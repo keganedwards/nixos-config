@@ -18,7 +18,6 @@
     ./networking.nix
     ./nix.nix
     ./nixpkgs.nix
-    ./secure-build
     ./security.nix
     ./sops.nix
     ./standard-user.nix

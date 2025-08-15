@@ -1,4 +1,4 @@
-# ./global-constants.nix
+# ./flake-constants.nix
 # Defines truly global constants or those derived purely from pkgs/lib.
 # It is imported by flake.nix and should not depend on Home Manager 'config'.
 {
@@ -17,6 +17,11 @@
   gitUiTool = "lazygit"; # Git TUI tool
   builderRepoPath = "/opt/nixos-config";
   builderSshKeyPath = "/opt/ssh/id_ed25519"; # Centralized this as well
+
+  # --- Security: SSH Public Key ---
+  # Your GitHub SSH public key for signature verification
+  trustedSshPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKSRQ9CKzXZ9mfwykoTSxqOAIov20LfQxzyLX+444M1x";
+
   # --- Terminal Emulator ---
   # These are fixed DEFAULTS based on the 'pkgs' for the current system.
   # If user configuration (e.g., config.programs.foot.package) needs to be respected,
@@ -216,6 +221,9 @@
   fileManagerNixPackageName = "yazi"; # Default name for Yazi package
 in {
   inherit stateVersion;
+  # --- Security ---
+  inherit trustedSshPublicKey;
+
   # --- Terminal Related ---
   # These provide information about the *default* terminal package.
   # Consuming modules should check 'config.programs.foot.package' for user overrides.
