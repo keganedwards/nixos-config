@@ -2,6 +2,6 @@
   imports = [
     ./programs.nix
     ./terminal-shell
-./git.nix
+    ./git.nix
   ];
 }

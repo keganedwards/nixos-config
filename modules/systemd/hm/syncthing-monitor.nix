@@ -1,7 +1,4 @@
-{
-  pkgs,
-  ...
-}: let
+{pkgs, ...}: let
   # Script to check Syncthing logs and notify on issues
   monitorScript = pkgs.writeShellApplication {
     name = "syncthing-monitor-check";

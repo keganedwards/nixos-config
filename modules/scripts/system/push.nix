@@ -19,7 +19,7 @@ assert flakeDir != null; {
 
           WORKSPACE="${flakeDir}"
           BRANCH="main"
-          REMOTE="origin"
+             REMOTE="origin"
           FORCE_OPTS=""
 
           NOTIFY(){ notify-send -u "''${2:-normal}" -a "NixOS Push" "$1" &>/dev/null || true; }

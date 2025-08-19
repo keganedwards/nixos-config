@@ -8,10 +8,7 @@
 with lib; let
   cfg = config.services.vpn-apps;
 
-  vpnAppOptions = {
-    name,
-    ...
-  }: {
+  vpnAppOptions = {name, ...}: {
     options = {
       name = mkOption {
         type = types.str;

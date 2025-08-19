@@ -14,7 +14,7 @@
     inherit pkgs;
     appId = "terminal-gitui";
     sessionName = "gitui";
-    terminalBin = constants.terminalBin;
+    inherit (constants) terminalBin;
     commandToRun = gituiCommand;
     appType = "gitui"; # Specify this is a git UI app
   };

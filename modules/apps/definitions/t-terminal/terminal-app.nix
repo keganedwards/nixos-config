@@ -8,7 +8,7 @@
     inherit pkgs;
     appId = "terminal";
     sessionName = "terminal";
-    terminalBin = constants.terminalBin;
+    inherit (constants) terminalBin;
     commandToRun = "$SHELL";
     appType = "terminal"; # Specify this is a terminal
   };

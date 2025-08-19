@@ -1,4 +1,4 @@
-# /etc/nixos/modules/nixos/boot.nix
+# /modules/boot.nix
 {
   lib,
   config,
@@ -26,34 +26,43 @@ in {
   };
 
   config = lib.mkIf (config.custom.boot.luksPartitions != {}) {
-    boot.loader.systemd-boot.enable = true;
-    boot.loader.efi.canTouchEfiVariables = true;
-    boot.initrd.systemd.enable = true;
-
-    boot.initrd.kernelModules = ["tpm_crb" "tpm_tis" "tpm_tis_core" "tpm"];
+    # This is not a boot option, so it remains at the top level.
     environment.systemPackages = [pkgs.clevis pkgs.tpm2-tools];
 
-    boot.initrd.luks.devices =
-      lib.mapAttrs'
-      (_partitionName: partitionCfg:
-        lib.nameValuePair partitionCfg.luksName {
-          device = partitionCfg.devicePath;
-        })
-      config.custom.boot.luksPartitions;
+    # All boot-related options are now grouped under this single attribute set.
+    boot = {
+      loader = {
+        systemd-boot.enable = true;
+        efi.canTouchEfiVariables = true;
+      };
 
-    boot.initrd.clevis = {
-      enable = true;
-      devices =
-        lib.mapAttrs'
-        (_partitionName: partitionCfg:
-          lib.nameValuePair partitionCfg.luksName {
-            secretFile = jweFilePath;
-          })
-        config.custom.boot.luksPartitions;
-    };
+      initrd = {
+        systemd.enable = true;
+        kernelModules = ["tpm_crb" "tpm_tis" "tpm_tis_core" "tpm"];
 
-    boot.initrd.secrets = lib.optionalAttrs (builtins.pathExists jweFilePath) {
-      "${jweFilePath}" = jweFilePath;
+        luks.devices =
+          lib.mapAttrs'
+          (_partitionName: partitionCfg:
+            lib.nameValuePair partitionCfg.luksName {
+              device = partitionCfg.devicePath;
+            })
+          config.custom.boot.luksPartitions;
+
+        clevis = {
+          enable = true;
+          devices =
+            lib.mapAttrs'
+            (_partitionName: partitionCfg:
+              lib.nameValuePair partitionCfg.luksName {
+                secretFile = jweFilePath;
+              })
+            config.custom.boot.luksPartitions;
+        };
+
+        secrets = lib.optionalAttrs (builtins.pathExists jweFilePath) {
+          "${jweFilePath}" = jweFilePath;
+        };
+      };
     };
   };
 }

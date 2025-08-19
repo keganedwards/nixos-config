@@ -1,7 +1,7 @@
 {
   imports = [
     ./boot
-#    ./automount.nix
+    #    ./automount.nix
     ./steam.nix
   ];
 }

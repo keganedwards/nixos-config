@@ -1,11 +1,10 @@
+# /modules/desktop-entries.nix
 {
-  config, # Full Home Manager config, includes processed config.applications
+  config,
   lib,
   pkgs,
   ...
 }: let
-  # This file uses the logic you provided, which correctly handles GUI and
-  # Terminal applications differently.
   sanitizeForFilename = str:
     if str == null || str == ""
     then throw "sanitizeForFilename received null or empty input"
@@ -39,7 +38,7 @@
     lib.map
     (item: let
       appCfg = item.appConfig;
-      appInfo = appCfg.appInfo;
+      inherit (appCfg) appInfo;
       desktopCfg = appCfg.desktopFile;
       _nameSourceForFilename = desktopCfg.displayName or appInfo.name or item.appKey;
       baseFileName = sanitizeForFilename _nameSourceForFilename;
@@ -121,22 +120,26 @@
     ])
     appsToGenerate;
 in {
-  home.packages = [
-    pkgs.desktop-file-utils
-  ];
+  home = {
+    packages = [
+      pkgs.desktop-file-utils
+    ];
 
-  home.file = lib.listToAttrs (lib.flatten fileEntries);
+    file = lib.listToAttrs (lib.flatten fileEntries);
 
-  home.activation.updateDesktopDatabase = lib.hm.dag.entryAfter ["writeBoundary"] ''
-    set -e
-    # Ensure the target directory exists before trying to update it.
-    mkdir -p "${config.home.homeDirectory}/.local/share/applications"
+    activation = {
+      updateDesktopDatabase = lib.hm.dag.entryAfter ["writeBoundary"] ''
+        set -e
+        # Ensure the target directory exists before trying to update it.
+        mkdir -p "${config.home.homeDirectory}/.local/share/applications"
 
-    if command -v update-desktop-database >/dev/null 2>&1; then
-      echo "Updating desktop application database..."
-      update-desktop-database -q "${config.home.homeDirectory}/.local/share/applications"
-    else
-      echo "Warning: update-desktop-database command not found. Skipping." >&2
-    fi
-  '';
+        if command -v update-desktop-database >/dev/null 2>&1; then
+          echo "Updating desktop application database..."
+          update-desktop-database -q "${config.home.homeDirectory}/.local/share/applications"
+        else
+          echo "Warning: update-desktop-database command not found. Skipping." >&2
+        fi
+      '';
+    };
+  };
 }

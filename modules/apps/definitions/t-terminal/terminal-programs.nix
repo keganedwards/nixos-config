@@ -1,5 +1,5 @@
 # File: modules/home-manager/apps/definitions/t-terminal/terminal-programs.nix
-{...}: {
+_: {
   programs.foot = {
     enable = true;
     settings = {

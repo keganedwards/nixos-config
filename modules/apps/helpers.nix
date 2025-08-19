@@ -40,7 +40,7 @@
 in {
   # --- Generic App Helper ---
   mkApp = args: let
-    name = resolve (args.id);
+    name = resolve args.id;
     isTerminalAppFromArgs = resolve (args.isTerminalApp or false);
     appIdFromArgs = resolve (args.appId or null);
     title = resolve (args.title or null);
@@ -120,7 +120,7 @@ in {
 
   # --- Flatpak App Helper (Unchanged) ---
   mkFlatpakApp = args: let
-    flatpakId = resolve (args.id);
+    flatpakId = resolve args.id;
     appIdFromArgs = resolve (args.appId or null);
     userLaunchCommand = resolve (args.launchCommand or null);
     commandArgs = resolve (args.commandArgs or "");

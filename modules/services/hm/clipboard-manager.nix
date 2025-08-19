@@ -5,8 +5,8 @@
   config,
   ...
 }: let
-  terminalName = config.myConstants.terminalName;
-  terminalBin = config.myConstants.terminalBin;
+  inherit (config.myConstants) terminalName;
+  inherit (config.myConstants) terminalBin;
   clipseExe = lib.getExe pkgs.clipse;
   clipseSwayAppId = "clipse-${terminalName}";
   launchClipseCommand = "${terminalBin} --app-id=${lib.escapeShellArg clipseSwayAppId} ${clipseExe}";

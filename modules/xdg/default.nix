@@ -1,10 +1,10 @@
 # This file bridges the system and home-manager configurations for 'xdg'.
-{ username, ... }: {
+{username, ...}: {
   # System-level configurations for xdg
-  imports = [ ./system.nix ];
+  imports = [./system.nix];
 
   # User-level (home-manager) configurations for xdg
   home-manager.users.${username} = {
-    imports = [ ./hm.nix ];
+    imports = [./hm.nix];
   };
 }

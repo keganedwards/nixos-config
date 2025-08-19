@@ -32,7 +32,7 @@
         lib.throwIf (!(pkgs ? "${packageIdentifierFromAppInfo}"))
         "Application Error ('${appNameForError}', appKey: ${appKey}): 'installMethod' is \"nix-package\" with package ID '${packageIdentifierFromAppInfo}', but this package is not found in your Nixpkgs set."
         # Return list with the actual package derivation
-        [(pkgs."${packageIdentifierFromAppInfo}")]
+        [pkgs."${packageIdentifierFromAppInfo}"]
       else []; # Not a "nix-package" type install, so no package derived this way
 
     # Flatpak IDs to install if installMethod is "flatpak"

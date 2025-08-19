@@ -27,58 +27,65 @@
     })
     fishFilePaths);
 in {
-  home.packages = with pkgs; [
-    xdg-utils
-    tldr
-  ];
-  programs.fish = {
-    enable = true;
+  # All home-related options are now grouped together
+  home = {
+    packages = with pkgs; [
+      xdg-utils
+      tldr
+    ];
+    file = fishSymlinks;
   };
-  programs.nix-your-shell = {
-    enable = true;
-    enableFishIntegration = true;
-  };
-  programs.zoxide = {
-    enable = true;
-    enableFishIntegration = true;
-  };
-  programs.eza = {
-    enable = true;
-    enableFishIntegration = true;
-    git = true;
-    icons = "always";
-  };
-  programs.fzf = {
-    enable = true;
-    tmux.enableShellIntegration = true;
-    enableFishIntegration = false;
-  };
-  programs.fd = {
-    enable = true;
-    extraOptions = ["--hidden" "--follow" "--exclude" ".git" "--exclude" "node_modules"];
-  };
-  programs.bat = {
-    enable = true;
-    config = {
-      style = "numbers";
-      paging = "never";
+
+  # All program configurations are now nested under a single `programs` attribute set
+  programs = {
+    fish = {
+      enable = true;
+    };
+    nix-your-shell = {
+      enable = true;
+      enableFishIntegration = true;
+    };
+    zoxide = {
+      enable = true;
+      enableFishIntegration = true;
+    };
+    eza = {
+      enable = true;
+      enableFishIntegration = true;
+      git = true;
+      icons = "always";
+    };
+    fzf = {
+      enable = true;
+      tmux.enableShellIntegration = true;
+      enableFishIntegration = false;
+    };
+    fd = {
+      enable = true;
+      extraOptions = ["--hidden" "--follow" "--exclude" ".git" "--exclude" "node_modules"];
+    };
+    bat = {
+      enable = true;
+      config = {
+        style = "numbers";
+        paging = "never";
+      };
+    };
+    nix-index = {
+      enable = true;
+      enableFishIntegration = true;
+    };
+    starship = {
+      enable = true;
+      enableFishIntegration = true;
+      enableTransience = true;
+    };
+    ripgrep = {
+      enable = true;
+      arguments = ["--smart-case" "--hidden" "--glob=!.git/*"];
+    };
+    pay-respects = {
+      enable = true;
     };
   };
-  programs.nix-index = {
-    enable = true;
-    enableFishIntegration = true;
-  };
-  programs.starship = {
-    enable = true;
-    enableFishIntegration = true;
-    enableTransience = true;
-  };
-  programs.ripgrep = {
-    enable = true;
-    arguments = ["--smart-case" "--hidden" "--glob=!.git/*"];
-  };
-  programs.pay-respects = {
-    enable = true;
-  };
-  home.file = fishSymlinks;
 }

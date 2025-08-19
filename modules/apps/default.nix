@@ -15,7 +15,7 @@
 
   helpersModuleArgs = {
     inherit lib pkgs inputs system specialArgs constants;
-    config = topLevelModuleArgs.config;
+    inherit (topLevelModuleArgs) config;
   };
   helpers = import ./helpers.nix helpersModuleArgs;
 
@@ -105,7 +105,7 @@
           title = null;
           isTerminalApp = rawSimplifiedConf.isTerminalApp or false;
         };
-        launchCommand = rawSimplifiedConf.launchCommand;
+        inherit (rawSimplifiedConf) launchCommand;
         desktopFile = lib.recursiveUpdate (helpers.mkDefaultDesktopFileAttrs {
           name = primaryIdValue;
           package = primaryIdValue;
@@ -133,8 +133,8 @@
       key = rawSimplifiedConf.key or null;
       autostart = autostartPriorityValue != null;
       autostartPriority = autostartPriorityValue;
-      launchCommand = finalResult.launchCommand;
-      appId = finalResult.appInfo.appId;
+      inherit (finalResult) launchCommand;
+      inherit (finalResult.appInfo) appId;
       appDefHomePackages = rawSimplifiedConf.appDefHomePackages or [];
       flatpakOverride = rawSimplifiedConf.flatpakOverride or null;
       vpn = vpnConfig; # ADD THIS LINE
@@ -146,7 +146,7 @@
   packagesDerivedConfig = {
     applications = processedApplications;
     inherit pkgs lib;
-    config = topLevelModuleArgs.config;
+    inherit (topLevelModuleArgs) config;
   };
   derivedPackagesInfo = import ./packages-app-derived.nix packagesDerivedConfig;
 
@@ -174,7 +174,7 @@ in {
       else val;
 
     packagesFromProcessedApps = lib.flatten (lib.mapAttrsToList (_appKey: app: app.homePackages or []) processedApplications);
-    resolvedOtherGlobals = lib.mapAttrs (_name: value: resolveConfig value) otherGlobalConfigsFromAppDefs;
+    resolvedOtherGlobals = lib.mapAttrs (_name: resolveConfig) otherGlobalConfigsFromAppDefs;
 
     directGlobalPackages = resolvedOtherGlobals.home.packages or [];
     globalFlatpakOverrides = resolvedOtherGlobals.services.flatpak.overrides or {};
@@ -188,7 +188,7 @@ in {
       resolvedOtherGlobals
       {applications = processedApplications;}
       {home.packages = lib.unique (directGlobalPackages ++ packagesFromProcessedApps ++ derivedPackagesInfo.extractedNixPackages);}
-      {services.flatpak.packages = lib.unique (derivedPackagesInfo.extractedFlatpakIds);}
+      {services.flatpak.packages = lib.unique derivedPackagesInfo.extractedFlatpakIds;}
       {services.flatpak.overrides = finalFlatpakOverrides;}
     ];
   in

@@ -111,10 +111,7 @@
         #################################################################################
 
         appInfo = lib.mkOption {
-          type = lib.types.submodule ({
-            name,
-            ...
-          }: {
+          type = lib.types.submodule ({name, ...}: {
             # 'name' here refers to the 'appInfo' attribute itself
             options = {
               name = lib.mkOption {
@@ -167,9 +164,7 @@
         #################################################################################
 
         desktopFile = lib.mkOption {
-          type = lib.types.submodule ({
-            ...
-          }: {
+          type = lib.types.submodule (_: {
             # name here is desktopFile
             options = {
               generate = lib.mkOption {

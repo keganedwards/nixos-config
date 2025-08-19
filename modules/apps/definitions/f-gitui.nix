@@ -19,7 +19,7 @@
       args = {
         appId = "${constants.terminalName}-gitui";
         sessionName = "gitui";
-        terminalBin = constants.terminalBin;
+        inherit (constants) terminalBin;
         commandToRun = "${pkgs.lazygit}/bin/lazygit";
         commandArgs = "";
         tabNameStrategy = "custom";
