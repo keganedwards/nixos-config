@@ -119,8 +119,6 @@
       pre-commit-check = pre-commit-hooks.lib.${system}.run {
         src = ./.;
         hooks = {
-          # --- MODIFIED SECTION START ---
-
           # Secret Detection
           ripsecrets.enable = true;
           detect-private-keys.enable = true;
@@ -131,7 +129,6 @@
           check-merge-conflicts.enable = true;
           check-symlinks.enable = true;
           forbid-new-submodules.enable = true;
-          shfmt.enable = true;
 
           # Nix Tooling (Formatter, Linters, and Checkers)
           alejandra.enable = true; # The primary, opinionated formatter.
