@@ -1,4 +1,3 @@
-# /scripts/system/test.nix
 {
   pkgs,
   username,
@@ -62,7 +61,7 @@
     cd "${flakeDir}"
 
     validate_flatpaks() {
-      local added_files="$1"
+      added_files="$1"
 
       if [ -z "$added_files" ] || [ ! -d "${definitionsDir}" ]; then
         return 0
@@ -110,7 +109,7 @@
           ;;
         -h|--help)
           echo "Usage: nixos-test [-f|--force]"
-          echo "  -f, --force     Force rebuild even if repository is clean"
+          echo "  -f, --force      Force rebuild even if repository is clean"
           exit 0
           ;;
         *)
@@ -120,7 +119,7 @@
       esac
     done
 
-    # --- Handle force rebuild case ---
+    # --- Handle force rebuild case (no review required) ---
     if [ "$force_rebuild" -eq 1 ]; then
       TARGET_COMMIT=$(${pkgs.git}/bin/git rev-parse HEAD)
       echo "✅ Force flag detected. Proceeding with rebuild."
@@ -144,116 +143,186 @@
     fi
 
     # --- Check for uncommitted changes ---
-    if ! ${pkgs.git}/bin/git diff --quiet HEAD; then
+    if ! ${pkgs.git}/bin/git diff --quiet HEAD || [ -n "$(${pkgs.git}/bin/git ls-files --others --exclude-standard)" ]; then
       echo ":: Uncommitted changes detected."
 
       original_head=$(${pkgs.git}/bin/git rev-parse HEAD)
 
-      # Stage and amend atomically (as current user with proper signing)
-      ${pkgs.git}/bin/git add .
-      ${pkgs.git}/bin/git commit --amend --no-edit --quiet
-
-      TARGET_COMMIT=$(${pkgs.git}/bin/git rev-parse HEAD)
-
-      # Get the diff between the two most recent commits for validation
-      added_files=$(${pkgs.git}/bin/git diff --name-only "$original_head" HEAD | ${pkgs.ripgrep}/bin/rg '\.nix$' || true)
+      # Collect all changed .nix files (unstaged, staged, untracked)
+      added_files=$(
+        {
+          ${pkgs.git}/bin/git diff --name-only HEAD || true
+          ${pkgs.git}/bin/git diff --name-only --staged || true
+          ${pkgs.git}/bin/git ls-files --others --exclude-standard || true
+        } | ${pkgs.ripgrep}/bin/rg '\.nix$' || true
+      )
 
       if ! validate_flatpaks "$added_files"; then
-        ${pkgs.git}/bin/git reset --hard "$original_head"
         exit 1
       fi
 
-      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      echo "  Starting parallel build and review..."
-      echo "  Commit: ''${TARGET_COMMIT:0:7}"
-      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      # Stage all changes
+      ${pkgs.git}/bin/git add .
 
-      # Launch build in separate terminal
-      if command -v ${flakeConstants.terminalName} >/dev/null && [ -n "''${WAYLAND_DISPLAY:-}" ]; then
-        # Use setsid to detach from parent and prevent shell/fish from interfering
-        setsid -f ${flakeConstants.terminalBin} --app-id=nixos-build --title="NixOS Build" \
-          ${pkgs.bash}/bin/bash -c "
-            echo ':: Authenticating for NixOS test build...'
-            if sudo ${nixos-test-build}/bin/nixos-test-build '$TARGET_COMMIT'; then
-              ${pkgs.libnotify}/bin/notify-send -u normal -a 'NixOS Test' '✅ Test build successful!'
+      # Check if there are staged changes to commit
+      if ! ${pkgs.git}/bin/git diff --quiet --staged; then
+        # Commit menu
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "  Commit Changes"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo
+        echo ":: Current commit message:"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        ${pkgs.git}/bin/git log -1 --pretty=format:"%s%n%n%b" HEAD
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo
+        echo ":: Changes have been staged. Choose how to proceed:"
+        echo
+        echo "  (a) Amend the last commit (preserves existing message)"
+        echo "  (c) Create new commit with message"
+        echo "  (m) Amend the last commit with new message"
+        echo "  (q) Quit and restore original state"
+        echo
+        printf "Your choice (a/c/m/q): "
+        IFS= read -r choice
+        echo
+
+        case "$choice" in
+          a|A)
+            # Amend without changing the message
+            ${pkgs.git}/bin/git commit --amend --no-edit --quiet
+            echo ":: Commit amended (message preserved)"
+            ;;
+          c|C)
+            echo ":: Enter commit message:"
+            IFS= read -r commit_msg
+            if [ -n "$commit_msg" ]; then
+              ${pkgs.git}/bin/git commit -m "$commit_msg" --quiet
             else
-              ${pkgs.libnotify}/bin/notify-send -u critical -a 'NixOS Test' '❌ Test build failed!'
+              echo ":: No message entered, using automatic message"
+              ${pkgs.git}/bin/git commit -m "nixos: test build changes" --quiet
             fi
-            exit
-          "
+            ;;
+          m|M)
+            echo ":: Enter new commit message for amend:"
+            IFS= read -r new_msg
+            if [ -n "$new_msg" ]; then
+              ${pkgs.git}/bin/git commit --amend -m "$new_msg" --no-gpg-sign --quiet
+              echo ":: Commit amended with new message (note: signature removed to avoid re-authentication)"
+              echo ":: You may want to re-sign this commit later with: git commit --amend -S --no-edit"
+            else
+              echo ":: No message entered, keeping original message"
+              ${pkgs.git}/bin/git commit --amend --no-edit --quiet
+            fi
+            ;;
+          q|Q)
+            echo ":: Restoring original state and aborting build..."
+            ${pkgs.git}/bin/git reset --hard "$original_head"
+            echo ":: Original state restored"
+            exit 1
+            ;;
+          *)
+            echo ":: Invalid choice, amending without changing message..."
+            ${pkgs.git}/bin/git commit --amend --no-edit --quiet
+            ;;
+        esac
+
+        TARGET_COMMIT=$(${pkgs.git}/bin/git rev-parse HEAD)
       else
-        echo ":: No graphical terminal available, running build in background..."
-        (
-          sudo ${nixos-test-build}/bin/nixos-test-build "$TARGET_COMMIT"
-          if [ $? -eq 0 ]; then
-            ${pkgs.libnotify}/bin/notify-send -u normal -a "NixOS Test" "✅ Test build successful!"
-          else
-            ${pkgs.libnotify}/bin/notify-send -u critical -a "NixOS Test" "❌ Test build failed!"
-          fi
-        ) &
+        echo ":: No changes to commit (all changes were already staged)"
+        TARGET_COMMIT="$original_head"
       fi
 
-      # Review process in CURRENT terminal
-      echo
+      # Spawn diff window if possible and there were actual changes
+      if [ "$TARGET_COMMIT" != "$original_head" ]; then
+        if command -v ${flakeConstants.terminalName} >/dev/null && [ -n "''${WAYLAND_DISPLAY:-}" ]; then
+          # Create a named pipe for build completion signaling
+          build_signal_pipe="/tmp/nixos-build-signal-$"
+          mkfifo "$build_signal_pipe"
+
+          # Cleanup function
+          cleanup() {
+            rm -f "$build_signal_pipe" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          diff_script='
+            set -euo pipefail
+            cd "'"${flakeDir}"'"
+
+            original_head="'"$original_head"'"
+            TARGET_COMMIT="'"$TARGET_COMMIT"'"
+            build_signal_pipe="'"$build_signal_pipe"'"
+
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "  Git Diff Review"
+            echo "  Commit: ''${TARGET_COMMIT:0:7}"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo
+            echo "Review your changes (press q to exit diff):"
+
+            # Start the diff in background so we can monitor for build completion
+            '"${pkgs.git}"'/bin/git diff --color=always "$original_head" "$TARGET_COMMIT" | '"${pkgs.less}"'/bin/less -R &
+            LESS_PID=$!
+
+            # Start monitoring for build signal
+            (
+              # Wait for signal from main process
+              read build_status < "$build_signal_pipe"
+              # Kill less when we get the signal
+              kill $LESS_PID 2>/dev/null || true
+              wait $LESS_PID 2>/dev/null || true
+              clear
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              echo "  Build completed: $build_status"
+              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              sleep 2
+              exit 0
+            ) &
+            MONITOR_PID=$!
+
+            # Wait for either less to exit or monitor to signal completion
+            wait $LESS_PID 2>/dev/null || true
+            kill $MONITOR_PID 2>/dev/null || true
+            exit 0
+          '
+
+          setsid -f ${flakeConstants.terminalBin} --app-id=nixos-diff --title="NixOS Diff Review" \
+            ${pkgs.bash}/bin/bash -lc "$diff_script" &
+          echo ":: Diff review terminal launched."
+        else
+          echo ":: No graphical terminal available — showing diff here before build."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  Git Diff Review"
+          echo "  Commit: ''${TARGET_COMMIT:0:7}"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo
+          echo "Review your changes (press q to exit diff):"
+          ${pkgs.git}/bin/git diff --color=always "$original_head" "$TARGET_COMMIT" | ${pkgs.less}/bin/less -R
+        fi
+      fi
+
+      # Start build in this window
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      echo "  Git Review"
-      echo "  (Build window has opened separately)"
+      echo ":: Starting NixOS test build for commit: ''${TARGET_COMMIT:0:7}"
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       echo
 
-      echo "Review your changes (press q to exit diff):"
-      ${pkgs.git}/bin/git diff --color=always "$original_head" HEAD | ${pkgs.less}/bin/less -R
-
-      echo
-      echo ":: Current commit message:"
-      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      ${pkgs.git}/bin/git log -1 --pretty=format:"%s%n%n%b"
-      echo
-      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      echo
-
-      echo "Choose an option:"
-      echo "  1) Keep amended commit as-is"
-      echo "  2) Change commit message (will use --no-gpg-sign to avoid re-prompting)"
-      echo "  3) Restore original state (undo amend)"
-      echo
-      read -p "Your choice (1/2/3): " -n 1 -r choice
-      echo
-
-      case "$choice" in
-        1)
-          echo ":: Keeping amended commit..."
-          ;;
-        2)
-          echo ":: Enter new commit message:"
-          read -r new_msg
-          if [ -n "$new_msg" ]; then
-            ${pkgs.git}/bin/git commit --amend -m "$new_msg" --no-gpg-sign --quiet
-            echo ":: Commit message updated (note: signature removed to avoid re-authentication)"
-            echo ":: You may want to re-sign this commit later with: git commit --amend -S --no-edit"
-          else
-            echo ":: No message entered, keeping current message"
-          fi
-          ;;
-        3)
-          echo ":: Restoring original state..."
-          ${pkgs.git}/bin/git reset --hard "$original_head"
-          echo ":: Original state restored"
-          ;;
-        *)
-          echo ":: Invalid choice, keeping amended commit..."
-          ;;
-      esac
-
-      echo
-      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      echo "  Git review complete!"
-      echo "  Build notification will appear when build finishes."
-      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      if sudo ${nixos-test-build}/bin/nixos-test-build "$TARGET_COMMIT"; then
+        ${pkgs.libnotify}/bin/notify-send -u normal -a "NixOS Test" "✅ Test build successful!"
+        # Signal completion to diff window
+        echo "success" > "$build_signal_pipe" 2>/dev/null || true
+        exit 0
+      else
+        ${pkgs.libnotify}/bin/notify-send -u critical -a "NixOS Test" "❌ Test build failed!"
+        # Signal completion to diff window
+        echo "failed" > "$build_signal_pipe" 2>/dev/null || true
+        exit 1
+      fi
 
     else
       echo "✅ Repository is clean. No changes to test."
-      echo "   Use -f or --force to rebuild anyway."
+      echo "    Use -f or --force to rebuild anyway."
       exit 0
     fi
   '';
