@@ -135,10 +135,6 @@
           end-of-file-fixer.enable = true;
           trim-trailing-whitespace.enable = true;
 
-          # File Syntax Checks
-          check-json.enable = true;
-          check-toml.enable = true;
-
           # Nix
           deadnix = {
             enable = true;
