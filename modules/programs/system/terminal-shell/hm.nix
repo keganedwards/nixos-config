@@ -41,6 +41,10 @@ in {
     fish = {
       enable = true;
     };
+    direnv = {
+      enable = true;
+      nix-direnv.enable = true;
+    };
     nix-your-shell = {
       enable = true;
       enableFishIntegration = true;
