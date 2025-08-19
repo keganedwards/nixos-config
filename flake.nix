@@ -1,4 +1,3 @@
-# ~/nixos-config/flake.nix
 {
   description = "NixOS & Home Manager configurations";
 
@@ -120,6 +119,8 @@
       pre-commit-check = pre-commit-hooks.lib.${system}.run {
         src = ./.;
         hooks = {
+          # --- MODIFIED SECTION START ---
+
           # Secret Detection
           ripsecrets.enable = true;
           detect-private-keys.enable = true;
@@ -131,15 +132,16 @@
           check-symlinks.enable = true;
           forbid-new-submodules.enable = true;
 
-          # File Formatting
-          end-of-file-fixer.enable = true;
-          trim-trailing-whitespace.enable = true;
-
-          # Nix
+          # Nix Tooling (Formatter, Linters, and Checkers)
+          alejandra.enable = true; # The primary, opinionated formatter.
+          statix.enable = true; # Broad linter for bugs and anti-patterns.
           deadnix = {
+            # Specialized tool to find and remove dead code.
             enable = true;
             settings.edit = true;
           };
+          flake-checker.enable = true; # Linter specifically for flake.nix structure.
+
           # Spellchecker
           typos.enable = true;
         };
