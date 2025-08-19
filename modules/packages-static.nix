@@ -1,14 +1,12 @@
-# File: modules/home-manager/packages-static.nix
-# Purpose: Defines a static list of packages to be installed in the user's profile.
-# Imported by the main modules/home-manager/default.nix
 {
-  pkgs, # Package set provided by Home Manager
-  lib, # Lib functions provided by Home Manager
-  ... # Other arguments are ignored
+  pkgs,
+  lib,
+  ...
 }: {
   # This module contributes these packages to the global home.packages
   home.packages = lib.unique (with pkgs; [
     # Shell & Core Utils
+    comma
     tokei
     dust
     dua
@@ -38,8 +36,6 @@
     vopono
     openvpn
     # GUI & Desktop Environment Support / Dependencies
-    imagemagick
-    ueberzugpp
     wl-clipboard
     libnotify
     gettext
