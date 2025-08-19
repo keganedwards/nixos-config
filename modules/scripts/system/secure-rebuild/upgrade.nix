@@ -43,54 +43,44 @@
       log_success "Verified: Only flake.lock was modified. Proceeding."
 
       runuser -u ${username} -- $GIT_CMD add flake.lock
-
-      # Get the passphrase
       PASSPHRASE=$(cat ${sshPassphraseFile})
-
-      # Set up environment for SSH signing
       export HOME="/home/${username}"
       export GIT_SSH_COMMAND="${pkgs.openssh}/bin/ssh -o BatchMode=yes -o StrictHostKeyChecking=no"
-
       log_info "Committing flake.lock...";
       runuser -u ${username} -p -- \
         ${pkgs.sshpass}/bin/sshpass -p "$PASSPHRASE" -P "passphrase" \
         $GIT_CMD commit -m "flake: update inputs"
-
       LATEST_HASH=$(runuser -u ${username} -- $GIT_CMD rev-parse HEAD)
-
       log_info "New commit created: ''${LATEST_HASH:0:7}"
       log_success "Commit signature will be verified by secure-rebuild."
-
       log_info "Building new system generation and setting it as default for next boot..."
-      # secure-rebuild will verify the signature - runs as root with bypass flag
       /run/current-system/sw/bin/secure-rebuild "$LATEST_HASH" boot
       log_success "System build complete."
+
+      # --- Simplified and Conditional Maintenance Block ---
+      if [ "$FINAL_ACTION" = "shutdown" ]; then
+        log_header "Running Post-Update Maintenance"
+
+        log_info "Updating Flatpaks..."
+        runuser -u ${username} -- flatpak update -y || log_info "Flatpak update failed or had no updates."
+        runuser -u ${username} -- flatpak uninstall --unused -y || log_info "No unused Flatpaks to remove."
+
+        log_info "Updating nix-index database..."
+        runuser -u ${username} -- nix-index || log_info "nix-index update failed."
+
+        log_info "Cleaning system and user generations..."
+        ${pkgs.nh}/bin/nh clean --all --keep 5
+
+        log_success "All maintenance tasks complete."
+      fi
+      # --- End of Maintenance Block ---
+
     else
       log_error "SECURITY ABORT: Unexpected changes detected!";
       log_error "The following files were modified: $GIT_STATUS"; exit 1
     fi
 
-    FLATPAK_PID=""
-    if command -v flatpak &> /dev/null; then
-      (
-        log_header "Updating Flatpaks (in background)"
-        runuser -u ${username} -- flatpak update -y || log_info "Flatpak update failed or no updates."
-        runuser -u ${username} -- flatpak uninstall --unused -y || log_info "No unused Flatpaks."
-        log_success "Flatpak operations complete."
-      ) &
-      FLATPAK_PID=$!
-    fi
-    if [ "$FINAL_ACTION" = "shutdown" ]; then
-      log_header "Running System Maintenance";
-      ${pkgs.nix}/bin/nix-store --optimise;
-      ${pkgs.nix}/bin/nix-collect-garbage --delete-older-than 30d;
-      log_success "System maintenance complete."
-    fi
-    if [ -n "$FLATPAK_PID" ]; then
-      log_info "Waiting for Flatpak operations to complete..."; wait "$FLATPAK_PID";
-    fi
-
-    log_success "All tasks completed successfully!"
+    log_success "All tasks concluded."
     log_header "Proceeding with final action: $FINAL_ACTION"
 
     if [ "$FINAL_ACTION" = "reboot" ]; then
@@ -101,12 +91,9 @@
   '';
 in {
   # Enable nh for improved NixOS rebuild UX
-  programs.nh = {
-    enable = true;
-  };
+  programs.nh.enable = true;
 
   # This declaratively configures the system-wide git config (/etc/gitconfig).
-  # The root user inherits this, trusting your flake repo when nixos-rebuild uses git.
   programs.git = {
     enable = true;
     config = {
@@ -124,7 +111,7 @@ in {
         StandardOutput = "tty";
         StandardError = "tty";
         TTYPath = "/dev/tty1";
-        Environment = "PATH=${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:/run/current-system/sw/bin";
+        Environment = "PATH=${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:${pkgs.nix-index}/bin:/run/current-system/sw/bin";
         ExecStart = "${upgradeAndPowerOffWorker} reboot";
         User = "root";
         Group = "root";
@@ -139,7 +126,7 @@ in {
         StandardOutput = "tty";
         StandardError = "tty";
         TTYPath = "/dev/tty1";
-        Environment = "PATH=${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:/run/current-system/sw/bin";
+        Environment = "PATH=${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:${pkgs.nix-index}/bin:/run/current-system/sw/bin";
         ExecStart = "${upgradeAndPowerOffWorker} shutdown";
         User = "root";
         Group = "root";
@@ -147,7 +134,7 @@ in {
     };
   };
 
-  # User needs sudo to start the systemd services (single password prompt)
+  # User needs sudo to start the systemd services
   security.sudo-rs.extraRules = [
     {
       users = [username];
@@ -164,6 +151,7 @@ in {
     }
   ];
 
+  # Create convenient aliases for the user
   home-manager.users.${username}.home.packages = [
     (pkgs.writeShellApplication {
       name = "upgrade-and-reboot";
