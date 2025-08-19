@@ -1,4 +1,4 @@
-# modules/home-manager/apps/definitions/e-text-editor/nvf-config.nix
+# /modules/apps/definitions/e-text-editor/editor-config.nix
 {
   pkgs,
   inputs,
@@ -14,15 +14,8 @@ let
         shiftwidth = 4;
         softtabstop = 4;
         relativenumber = true;
-
-        # --- Add these lines for setting the Neovim title ---
-        title = true; # Equivalent to vim.opt.title = true
-        titlestring = "%t"; # Sets title to the filename tail.
-        # You can use other formats too, e.g.:
-        # titlestring = "%F"; # Full path
-        # titlestring = "nvim: %t"; # Prefix with "nvim: "
-        # titlestring = "%t%s%m%r"; # Filename, modified status, readonly status
-        # --- End of title setting lines ---
+        title = true;
+        titlestring = "%t";
       };
       spellcheck.enable = true;
       globals.mapleader = "\\";
@@ -62,6 +55,10 @@ let
             package = pkgs.python3.withPackages (ps: [ps.debugpy]);
           };
         };
+        # --- ADDED: Enable the Bash language module ---
+        bash = {
+          enable = true;
+        };
       };
       autocomplete = {
         "nvim-cmp" = {
@@ -97,10 +94,23 @@ let
             markdown = ["prettier"];
             lua = ["stylua"];
             csharp = ["csharpier"];
+            # --- ADDED: Map sh/bash filetypes to the shfmt formatter ---
+            sh = ["shfmt"];
+            bash = ["shfmt"];
           };
         };
       };
-      extraPackages = [pkgs.fzf pkgs.alejandra pkgs.black pkgs.nodePackages.prettier pkgs.stylua pkgs.csharpier pkgs.wl-clipboard];
+      extraPackages = [
+        pkgs.fzf
+        pkgs.alejandra
+        pkgs.black
+        pkgs.nodePackages.prettier
+        pkgs.stylua
+        pkgs.csharpier
+        pkgs.wl-clipboard
+        # --- ADDED: Make the shfmt package available to Neovim ---
+        pkgs.shfmt
+      ];
       extraPlugins = with pkgs.vimPlugins; {
         cmp-nvim-lsp = {package = cmp-nvim-lsp;};
         cmp-buffer = {package = cmp-buffer;};
@@ -124,10 +134,9 @@ let
     };
   };
 in {
-  inherit nvfModuleStyleOptions; # If needed elsewhere, otherwise can be local to this file's let
+  inherit nvfModuleStyleOptions;
   customNvfNeovimDerivation = inputs.nvf.lib.neovimConfiguration {
-    # Changed name for clarity
     inherit pkgs;
-    modules = [nvfModuleStyleOptions]; # This passes the options including the new title settings
+    modules = [nvfModuleStyleOptions];
   };
 }
