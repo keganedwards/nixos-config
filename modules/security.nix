@@ -1,10 +1,7 @@
 # /modules/security.nix
 {
   security = {
-    # Disable the original sudo module
-    sudo.enable = false;
-
-    # Enable and configure the global behavior of sudo-rs
+    sudo.enable = true;
     sudo-rs = {
       enable = true;
       extraConfig = ''Defaults timestamp_timeout=0'';
