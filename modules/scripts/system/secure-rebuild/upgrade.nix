@@ -69,7 +69,7 @@
         runuser -u ${username} -- nix-index || log_info "nix-index update failed."
 
         log_info "Cleaning system and user generations..."
-        ${pkgs.nh}/bin/nh clean --all --keep 5
+        ${pkgs.nh}/bin/nh clean all --keep 5
 
         log_success "All maintenance tasks complete."
       fi
