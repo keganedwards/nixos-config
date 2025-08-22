@@ -1,6 +1,7 @@
 # /modules/security.nix
 {
   security = {
+    apparmor.enable = true;
     sudo-rs = {
       enable = true;
       extraConfig = ''Defaults timestamp_timeout=0'';
