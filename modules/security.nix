@@ -1,7 +1,6 @@
 # /modules/security.nix
 {
   security = {
-    sudo.enable = true;
     sudo-rs = {
       enable = true;
       extraConfig = ''Defaults timestamp_timeout=0'';
