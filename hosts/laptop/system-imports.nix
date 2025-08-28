@@ -1,8 +1,7 @@
 {
   imports = [
-    ./logind.nix
+    ./power-management.nix
     ./boot
     ./tlp.nix
-    ./power-management.nix
   ];
 }

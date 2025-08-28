@@ -18,6 +18,7 @@
     ./networking.nix
     ./nix.nix
     ./nixpkgs.nix
+    ./power-management.nix
     ./security.nix
     ./sops.nix
     ./standard-user.nix
