@@ -9,14 +9,12 @@
 }: let
   sshPassphraseSecretFile = config.sops.secrets."ssh-key-passphrase".path;
 
-  # A simple script that uses the standard, secure sudo wrapper.
   ssh-askpass = pkgs.writeShellScriptBin "ssh-askpass" ''
     #!${pkgs.stdenv.shell}
     exec /run/wrappers/bin/sudo ${pkgs.coreutils}/bin/cat ${sshPassphraseSecretFile}
   '';
 in {
   home-manager.users.${username} = {
-    # All home-related options are now grouped together
     home = {
       packages = [ssh-askpass];
 
@@ -26,7 +24,6 @@ in {
         GIT_COMMITTER_NAME = fullName;
         GIT_COMMITTER_EMAIL = email;
 
-        # These variables enable the automatic password prompt for signing.
         SSH_ASKPASS = "${ssh-askpass}/bin/ssh-askpass";
         SSH_ASKPASS_REQUIRE = "force";
       };
@@ -41,7 +38,6 @@ in {
       };
     };
 
-    # All program configurations are now grouped together
     programs = {
       git = {
         enable = true;
@@ -58,7 +54,28 @@ in {
         };
       };
 
-      ssh.enable = true;
+      ssh = {
+        enable = true;
+        enableDefaultConfig = false;
+
+        matchBlocks."*" = {
+          forwardAgent = false;
+          addKeysToAgent = "no";
+          controlMaster = "no";
+          controlPath = "none";
+          controlPersist = "no";
+
+          compression = false;
+          serverAliveInterval = 0;
+          serverAliveCountMax = 3;
+          hashKnownHosts = true;
+          userKnownHostsFile = "~/.ssh/known_hosts";
+          identitiesOnly = true;
+          # --- CORRECTED LINE ---
+          sendEnv = ["LANG" "LC_*"];
+          # ----------------------
+        };
+      };
     };
   };
 }
