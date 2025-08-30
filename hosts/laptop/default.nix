@@ -1,11 +1,22 @@
 # This is the main "bridge" module for this host.
 # It correctly imports both host-specific system modules and
 # host-specific user modules in their proper contexts.
-{username, ...}: {
+# --- MODIFIED --- Add `inputs` to the function arguments
+{
+  inputs,
+  username,
+  ...
+}: {
+  # ----------------
+
   # == 1. HOST-SPECIFIC NIXOS MODULES ==
   # Import all system-level modules specific to this host.
   # This file was the old system/default.nix.
-  imports = [./system-imports.nix];
+  imports = [
+    ./system-imports.nix
+
+    inputs.nixos-hardware.nixosModules.lenovo-thinkpad-t480s
+  ];
 
   # == 2. HOST-SPECIFIC HOME MANAGER MODULES ==
   # Apply Home Manager modules specific to this host.

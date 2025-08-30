@@ -42,6 +42,7 @@
     imports = [
       ./apps
       ./desktop-entries.nix
+      ./directories.nix
       ./packages-static.nix
       ./screenshot-configuration.nix
     ];
