@@ -53,11 +53,11 @@
       LATEST_HASH=$(runuser -u ${username} -- $GIT_CMD rev-parse HEAD)
       log_info "New commit created: ''${LATEST_HASH:0:7}"
       log_success "Commit signature will be verified by secure-rebuild."
-
-      log_info "Building new system generation..."
+      log_info "Building new system generation and setting it as default for next boot..."
       /run/current-system/sw/bin/secure-rebuild "$LATEST_HASH" boot
       log_success "System build complete."
 
+      # --- Simplified and Conditional Maintenance Block ---
       if [ "$FINAL_ACTION" = "shutdown" ]; then
         log_header "Running Post-Update Maintenance"
 
@@ -65,17 +65,18 @@
         runuser -u ${username} -- flatpak update -y || log_info "Flatpak update failed or had no updates."
         runuser -u ${username} -- flatpak uninstall --unused -y || log_info "No unused Flatpaks to remove."
 
+        log_info "Updating nix-index database..."
+        runuser -u ${username} -- nix-index || log_info "nix-index update failed."
+
         log_info "Cleaning system and user generations..."
         ${pkgs.nh}/bin/nh clean all --keep 5
 
         log_info "Optimizing Nix store..."
         ${pkgs.nix}/bin/nix store optimize
 
-        log_info "Updating nix-index database..."
-        runuser -u ${username} -- nix-index || log_info "nix-index update failed."
-
         log_success "All maintenance tasks complete."
       fi
+      # --- End of Maintenance Block ---
 
     else
       log_error "SECURITY ABORT: Unexpected changes detected!";
@@ -92,8 +93,10 @@
     fi
   '';
 in {
+  # Enable nh for improved NixOS rebuild UX
   programs.nh.enable = true;
 
+  # This declaratively configures the system-wide git config (/etc/gitconfig).
   programs.git = {
     enable = true;
     config = {
@@ -134,6 +137,7 @@ in {
     };
   };
 
+  # User needs sudo to start the systemd services
   security.sudo-rs.extraRules = [
     {
       users = [username];
@@ -150,6 +154,7 @@ in {
     }
   ];
 
+  # Create convenient aliases for the user
   home-manager.users.${username}.home.packages = [
     (pkgs.writeShellApplication {
       name = "upgrade-and-reboot";
