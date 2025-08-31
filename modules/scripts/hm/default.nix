@@ -2,6 +2,5 @@
 {
   imports = [
     ./vpn-app-launcher.nix
-    ./move-to-scratchpad-script.nix
   ];
 }
