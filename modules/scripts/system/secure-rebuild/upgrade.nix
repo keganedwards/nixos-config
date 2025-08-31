@@ -72,7 +72,7 @@
         ${pkgs.nh}/bin/nh clean all --keep 5
 
         log_info "Optimizing Nix store..."
-        ${pkgs.nix}/bin/nix store optimize
+        ${pkgs.nix}/bin/nix store optimise
 
         log_success "All maintenance tasks complete."
       fi
