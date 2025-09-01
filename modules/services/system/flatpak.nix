@@ -9,9 +9,6 @@
   home-manager.users.${username} = {
     imports = [nix-flatpak.homeManagerModules.nix-flatpak];
 
-    services.flatpak = {
-      enable = true;
-      uninstallUnmanaged = true;
-    };
+    services.flatpak.enable = true;
   };
 }
