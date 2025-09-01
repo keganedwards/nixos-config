@@ -1,4 +1,3 @@
-# /modules/system/upgrade.nix
 {
   pkgs,
   config,
@@ -18,7 +17,8 @@
     log_error()   { echo -e "\e[1;31m[ERROR]\e[0m $1"; }
 
     if command -v swaymsg &> /dev/null; then swaymsg exit || true; fi
-    if command -v flatpak &> /dev/null; then runuser -u ${username} -- flatpak kill com.brave.Browser || true; fi
+    # Original command was slightly different, using a more robust version from the previous attempt.
+    if command -v flatpak &> /dev/null; then runuser -l ${username} -c "flatpak kill com.brave.Browser" || true; fi
 
     clear
     log_header "System Upgrade Service Started"
@@ -62,11 +62,13 @@
         log_header "Running Post-Update Maintenance"
 
         log_info "Updating Flatpaks..."
-        runuser -u ${username} -- flatpak update -y || log_info "Flatpak update failed or had no updates."
-        runuser -u ${username} -- flatpak uninstall --unused -y || log_info "No unused Flatpaks to remove."
+        # FIX: Use 'runuser -l' to ensure HOME is set correctly for flatpak
+        runuser -l ${username} -c "flatpak update -y" || log_info "Flatpak update failed or had no updates."
+        runuser -l ${username} -c "flatpak uninstall --unused -y" || log_info "No unused Flatpaks to remove."
 
         log_info "Updating nix-index database..."
-        runuser -u ${username} -- nix-index || log_info "nix-index update failed."
+        # FIX: Use 'runuser -l' to ensure HOME is set correctly for nix-index
+        runuser -l ${username} -c "nix-index" || log_info "nix-index update failed."
 
         log_info "Cleaning system and user generations..."
         ${pkgs.nh}/bin/nh clean all --keep 5
@@ -93,6 +95,7 @@
     fi
   '';
 in {
+  # ... rest of the file is unchanged ...
   # Enable nh for improved NixOS rebuild UX
   programs.nh.enable = true;
 
