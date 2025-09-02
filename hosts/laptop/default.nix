@@ -13,7 +13,9 @@
   # Import all system-level modules specific to this host.
   # This file was the old system/default.nix.
   imports = [
-    ./system-imports.nix
+    ./boot
+    ./hardware.nix
+    ./power-management.nix
 
     inputs.nixos-hardware.nixosModules.lenovo-thinkpad-t480s
   ];
@@ -22,6 +24,11 @@
   # Apply Home Manager modules specific to this host.
   home-manager.users.${username} = {
     # This file was the old home-manager/default.nix.
-    imports = [./hm-imports.nix];
+
+    imports = [
+      ./battery-notifier.nix
+      ./sway.nix
+      ./monitors.nix
+    ];
   };
 }

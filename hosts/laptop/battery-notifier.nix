@@ -1,4 +1,3 @@
-# home-manager-modules/battery-notifier.nix (or wherever you defined it)
 {
   pkgs,
   lib,
