@@ -17,8 +17,7 @@
     # This file was the old home-manager/default.nix.
     imports = [
       ./sway.nix
-      ./monitor.nix
-      ./kanshi.nix
+      ./monitors.nix
     ];
   };
 }
