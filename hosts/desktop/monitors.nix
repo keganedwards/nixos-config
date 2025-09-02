@@ -1,5 +1,3 @@
 {
-  services.way-displays = {
-    enable = true;
-  };
+  services.way-displays.enable = true;
 }
