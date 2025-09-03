@@ -1,4 +1,4 @@
-{
+{pkgs, ...}: {
   # The actual executable name (must match what’s on $PATH or installed via another module)
   id = "kdeconnect-sms";
 
@@ -10,4 +10,9 @@
 
   # If you want it to autostart at a certain priority, keep this:
   autostartPriority = 11;
+
+  # Add kdePackages.kpeople to the list of packages for your user
+  home.packages = [
+    pkgs.kdePackages.kpeople
+  ];
 }
