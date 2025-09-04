@@ -1,4 +1,3 @@
-# /modules/system/terminal-shell/system.nix
 {pkgs, ...}: {
   programs.fish.enable = true;
 

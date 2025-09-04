@@ -6,5 +6,6 @@
     ./fancy-git.nix
     ./menu.nix
     ./multiplexer.nix
+    ./terminal-tools.nix
   ];
 }

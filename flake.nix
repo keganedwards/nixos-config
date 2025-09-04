@@ -131,6 +131,7 @@
           check-symlinks.enable = true;
           forbid-new-submodules.enable = true;
           alejandra.enable = true;
+          typos.enable = true;
           statix = {
             enable = true;
             settings.ignore = [
@@ -142,7 +143,6 @@
             settings.edit = true;
           };
           flake-checker.enable = true;
-          typos.enable = true;
         };
       };
     });
