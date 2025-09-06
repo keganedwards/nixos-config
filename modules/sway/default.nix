@@ -20,6 +20,7 @@
       ./hm-logout.nix
       ./hm-lock-screen.nix
       ./hm-sway-config.nix
+      ./clipboard-manager.nix
     ];
   };
 
