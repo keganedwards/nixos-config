@@ -2,13 +2,13 @@
   xdg.userDirs = {
     enable = true;
     createDirectories = true;
-    # Define the standard user directories
-    desktop = "Desktop";
+
+    # Note that 'desktop' is not defined
     documents = "Documents";
-    download = "Downloads";
+    download = "Inbox";
     music = "Music";
     pictures = "Pictures";
-    publicShare = "Public";
+    publicShare = "Shared";
     templates = "Templates";
     videos = "Videos";
   };
