@@ -5,7 +5,7 @@
 
     # Note that 'desktop' is not defined
     documents = "Documents";
-    download = "Inbox";
+    download = "Internet";
     music = "Music";
     pictures = "Pictures";
     publicShare = "Shared";
