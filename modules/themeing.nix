@@ -23,11 +23,6 @@ in {
       enable = true;
       flavor = catflavor;
       wlogout.enable = false;
-
-      cursors = {
-        enable = true;
-        accent = "light";
-      };
     };
   };
 }

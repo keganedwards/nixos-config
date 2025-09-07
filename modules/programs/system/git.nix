@@ -7,27 +7,28 @@
   email,
   ...
 }: let
+  protectedUsername = "protect-${username}";
   sshPassphraseSecretFile = config.sops.secrets."ssh-key-passphrase".path;
 
+  # Create ssh-askpass in /run/wrappers equivalent location
   ssh-askpass = pkgs.writeShellScriptBin "ssh-askpass" ''
     #!${pkgs.stdenv.shell}
     exec /run/wrappers/bin/sudo ${pkgs.coreutils}/bin/cat ${sshPassphraseSecretFile}
   '';
 in {
+  # Install ssh-askpass system-wide in a protected location
+  environment.systemPackages = [ssh-askpass];
+
+  # Protected user manages the session variables
+  home-manager.users.${protectedUsername} = {
+    home.file.".config/environment.d/ssh-askpass.conf".text = ''
+      SSH_ASKPASS=${ssh-askpass}/bin/ssh-askpass
+      SSH_ASKPASS_REQUIRE=force
+    '';
+  };
+
   home-manager.users.${username} = {
     home = {
-      packages = [ssh-askpass];
-
-      sessionVariables = {
-        GIT_AUTHOR_NAME = fullName;
-        GIT_AUTHOR_EMAIL = email;
-        GIT_COMMITTER_NAME = fullName;
-        GIT_COMMITTER_EMAIL = email;
-
-        SSH_ASKPASS = "${ssh-askpass}/bin/ssh-askpass";
-        SSH_ASKPASS_REQUIRE = "force";
-      };
-
       file = {
         ".ssh/id_ed25519.pub" = {
           text = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKSRQ9CKzXZ9mfwykoTSxqOAIov20LfQxzyLX+444M1x ${email}";
@@ -51,6 +52,7 @@ in {
           user.signingkey = "~/.ssh/id_ed25519.pub";
           gpg.ssh.allowedSignersFile = "~/.ssh/allowed_signers";
           init.defaultBranch = "main";
+          core.sshCommand = "ssh -o SendEnv='SSH_ASKPASS SSH_ASKPASS_REQUIRE'";
         };
       };
 
@@ -64,16 +66,13 @@ in {
           controlMaster = "no";
           controlPath = "none";
           controlPersist = "no";
-
           compression = false;
           serverAliveInterval = 0;
           serverAliveCountMax = 3;
           hashKnownHosts = true;
           userKnownHostsFile = "~/.ssh/known_hosts";
           identitiesOnly = true;
-          # --- CORRECTED LINE ---
           sendEnv = ["LANG" "LC_*"];
-          # ----------------------
         };
       };
     };
