@@ -66,10 +66,6 @@
         runuser -l ${username} -c "flatpak update -y" || log_info "Flatpak update failed or had no updates."
         runuser -l ${username} -c "flatpak uninstall --unused -y" || log_info "No unused Flatpaks to remove."
 
-        log_info "Updating nix-index database..."
-        # FIX: Use 'runuser -l' to ensure HOME is set correctly for nix-index
-        runuser -l ${username} -c "nix-index" || log_info "nix-index update failed."
-
         log_info "Cleaning system and user generations..."
         ${pkgs.nh}/bin/nh clean all --keep 5
 
