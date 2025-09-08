@@ -29,6 +29,11 @@
     nixos-hardware = {
       url = "github:NixOS/nixos-hardware";
     };
+    # <-- ADDED
+    nix-index-database = {
+      url = "github:nix-community/nix-index-database";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = inputs @ {
@@ -41,6 +46,7 @@
     nvf,
     pre-commit-hooks,
     nixos-hardware,
+    nix-index-database, # <-- ADDED
   }: let
     stateVersion = "23.11";
 
@@ -106,6 +112,12 @@
               argsBase.home-manager.nixosModules.home-manager
               argsBase.sops-nix.nixosModules.sops
               argsBase.catppuccin.nixosModules.catppuccin
+
+              # <-- ADDED
+              nix-index-database.nixosModules.nix-index
+              # <-- ADDED: Enables the comma wrapper
+              {programs.nix-index-database.comma.enable = true;}
+
               ./modules
               hostParams.path
               {home-manager.extraSpecialArgs = argsBase;}
