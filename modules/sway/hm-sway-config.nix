@@ -23,25 +23,24 @@
     '';
 
     ".config/sway/keybindings.conf".text = ''
-      set $mod Mod4
 
-      bindsym $mod+w     kill
+      bindsym mod4+w     kill
 
-      bindsym $mod+bracketright exec ${pkgs.wireplumber}/bin/wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
-      bindsym $mod+bracketleft  exec ${pkgs.wireplumber}/bin/wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
-      bindsym $mod+m exec ${pkgs.wireplumber}/bin/wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
+      bindsym mod4+bracketright exec ${pkgs.wireplumber}/bin/wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
+      bindsym mod4+bracketleft  exec ${pkgs.wireplumber}/bin/wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
+      bindsym mod4+m exec ${pkgs.wireplumber}/bin/wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
 
-      bindsym $mod+space       exec ${pkgs.playerctl}/bin/playerctl play-pause
-      bindsym $mod+Mod1+Right  exec ${pkgs.playerctl}/bin/playerctl next
-      bindsym $mod+Mod1+Left   exec ${pkgs.playerctl}/bin/playerctl previous
+      bindsym mod4+space       exec ${pkgs.playerctl}/bin/playerctl play-pause
+      bindsym mod4+Mod1+Right  exec ${pkgs.playerctl}/bin/playerctl next
+      bindsym mod4+Mod1+Left   exec ${pkgs.playerctl}/bin/playerctl previous
 
-      bindsym $mod+Shift+v     exec sway-sink-volume
-      bindsym $mod+Shift+m     exec sway-mic-volume
-      bindsym $mod+Shift+i     exec sway-source-volume
-      bindsym $mod+Shift+w     exec sway-wifi-status
-      bindsym $mod+Shift+b     exec sway-battery-status
-      bindsym $mod+Shift+t     exec sway-show-time
-      bindsym $mod+Shift+r     exec sway-reload-env
+      bindsym mod4+Shift+v     exec sway-sink-volume
+      bindsym mod4+Shift+m     exec sway-mic-volume
+      bindsym mod4+Shift+i     exec sway-source-volume
+      bindsym mod4+Shift+w     exec sway-wifi-status
+      bindsym mod4+Shift+b     exec sway-battery-status
+      bindsym mod4+Shift+t     exec sway-show-time
+      bindsym mod4+Shift+r     exec sway-reload-env
     '';
   };
 }

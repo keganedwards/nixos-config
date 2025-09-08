@@ -28,6 +28,7 @@
     };
     extraConfig = ''
       default_border none
+      include ./base.conf
     '';
   };
 
