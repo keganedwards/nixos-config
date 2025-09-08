@@ -5,8 +5,12 @@
 }: {
   # --- Cursor Theme Configuration ---
   home.pointerCursor = {
-    package = pkgs.vanilla-dmz;
-    name = "Vanilla-DMZ";
+    # 1. Point to the specific output from the catppuccin-cursors package
+    package = pkgs.catppuccin-cursors.latteLight;
+
+    # 2. The 'name' must match the theme's internal name
+    name = "Catppuccin-Latte-Light";
+
     size = 24;
     gtk.enable = true;
     x11.enable = true;
@@ -20,12 +24,8 @@
     wrapperFeatures.gtk = true;
     config = {
       bars = [];
-
-      # --- Wallpaper Configuration ---
-      # This is a structured option and belongs here.
       output."*".bg = "${config.home.homeDirectory}/.local/share/wallpapers/Bing/desktop.jpg fill";
     };
-
     extraConfig = ''
       default_border none
     '';
