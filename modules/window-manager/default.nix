@@ -10,12 +10,15 @@
 
   home-manager.users.${username} = {
     imports = [
-      ./hm-base.nix
+      ./hm-environment.nix
+      ./hm-appearance.nix
+      ./hm-input.nix
+      ./hm-keybindings.nix
+      ./hm-window-rules.nix
       ./hm-startup.nix
       ./hm-workspaces.nix
       ./hm-logout.nix
       ./hm-lock-screen.nix
-      ./hm-sway-config.nix
       ./clipboard-manager.nix
     ];
   };

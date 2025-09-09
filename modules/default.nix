@@ -24,12 +24,10 @@
     ./security.nix
     ./sops.nix
     ./standard-user.nix
-    ./sway
     ./themeing.nix
     ./time.nix
     ./virtualization.nix
-
-    # NEW: Unified modules that handle both system and hm internally
+    ./window-manager
     ./programs
     ./scripts
     ./services

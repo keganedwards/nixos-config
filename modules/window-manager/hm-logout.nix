@@ -8,7 +8,7 @@
     layout = [
       {
         label = "lock";
-        action = "sway-lock-fancy";
+        action = "sway-lock-secure";
         text = "Lock (L)";
         keybind = "l";
       }
