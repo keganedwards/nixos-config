@@ -3,7 +3,7 @@
     ./system.nix
   ];
 
-  home-manager.users.${username} = {
+  home-manager.users."protect-${username}" = {
     imports = [
       ./hm
     ];
