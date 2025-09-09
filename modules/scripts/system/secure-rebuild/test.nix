@@ -332,11 +332,6 @@ in {
   };
 
   home-manager.users.${username} = {
-    programs.git = {
-      enable = true;
-      delta.enable = true;
-    };
-
     home.packages = [
       nixos-test-build
       nixos-test-wrapper

@@ -1,11 +1,6 @@
-{username, ...}: {
+{
   imports = [
     ./system.nix
+    ./hm
   ];
-
-  home-manager.users."protect-${username}" = {
-    imports = [
-      ./hm
-    ];
-  };
 }

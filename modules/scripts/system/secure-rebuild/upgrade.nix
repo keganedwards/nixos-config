@@ -91,8 +91,6 @@
     fi
   '';
 in {
-  # ... rest of the file is unchanged ...
-  # Enable nh for improved NixOS rebuild UX
   programs.nh.enable = true;
 
   # This declaratively configures the system-wide git config (/etc/gitconfig).

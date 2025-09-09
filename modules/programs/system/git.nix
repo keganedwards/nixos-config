@@ -19,23 +19,27 @@ in {
   # Install ssh-askpass system-wide in a protected location
   environment.systemPackages = [ssh-askpass];
 
-  # Protected user manages the session variables
+  # Protected user manages all configurations
   home-manager.users.${protectedUsername} = {
+    # Essential environment configuration
     home.file.".config/environment.d/ssh-askpass.conf".text = ''
       SSH_ASKPASS=${ssh-askpass}/bin/ssh-askpass
       SSH_ASKPASS_REQUIRE=force
     '';
-  };
 
-  home-manager.users.${username} = {
-    home = {
-      file = {
-        ".ssh/id_ed25519.pub" = {
-          text = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKSRQ9CKzXZ9mfwykoTSxqOAIov20LfQxzyLX+444M1x ${email}";
-        };
-        ".ssh/allowed_signers" = {
-          text = "${email} ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKSRQ9CKzXZ9mfwykoTSxqOAIov20LfQxzyLX+444M1x";
-        };
+    # Set SSH askpass in fish shell via shellInit
+    programs.fish.shellInit = ''
+      # Override SSH askpass settings with our secure version
+      set -gx SSH_ASKPASS "${ssh-askpass}/bin/ssh-askpass"
+      set -gx SSH_ASKPASS_REQUIRE force
+    '';
+
+    home.file = {
+      ".ssh/id_ed25519.pub" = {
+        text = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKSRQ9CKzXZ9mfwykoTSxqOAIov20LfQxzyLX+444M1x ${email}";
+      };
+      ".ssh/allowed_signers" = {
+        text = "${email} ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKSRQ9CKzXZ9mfwykoTSxqOAIov20LfQxzyLX+444M1x";
       };
     };
 
@@ -72,9 +76,17 @@ in {
           hashKnownHosts = true;
           userKnownHostsFile = "~/.ssh/known_hosts";
           identitiesOnly = true;
-          sendEnv = ["LANG" "LC_*"];
+          sendEnv = ["LANG" "LC_*" "SSH_ASKPASS" "SSH_ASKPASS_REQUIRE"];
         };
       };
     };
+  };
+
+  # Main user only gets the packages
+  home-manager.users.${username} = {
+    home.packages = with pkgs; [
+      git
+      openssh
+    ];
   };
 }

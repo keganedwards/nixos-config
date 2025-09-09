@@ -1,3 +1,4 @@
+# protected-user.nix
 {
   username,
   fullName,

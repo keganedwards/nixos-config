@@ -1,77 +1,100 @@
-{pkgs, ...}: {
-  home.packages = with pkgs; [
-    xdg-utils
-    tldr
-    tmux
-  ];
+# /.dotfiles/nixos/home-manager-modules/programs/terminal-tools.nix
+{
+  pkgs,
+  username,
+  ...
+}: let
+  protectedUsername = "protect-${username}";
+in {
+  # Protected user owns all the configuration
+  home-manager.users.${protectedUsername} = {
+    programs = {
+      direnv = {
+        enable = true;
+        nix-direnv.enable = true;
+      };
 
-  programs = {
-    direnv = {
-      enable = true;
-      nix-direnv.enable = true;
-    };
+      nix-your-shell = {
+        enable = true;
+      };
 
-    nix-your-shell = {
-      enable = true;
-    };
+      zoxide = {
+        enable = true;
+      };
 
-    zoxide = {
-      enable = true;
-    };
+      eza = {
+        enable = true;
+        git = true;
+        icons = "always";
+      };
 
-    eza = {
-      enable = true;
-      git = true;
-      icons = "always";
-    };
+      fzf = {
+        enable = true;
+        tmux.enableShellIntegration = true;
+        enableFishIntegration = false;
+      };
 
-    # Enable FZF but disable Fish integration since we use custom functions
-    fzf = {
-      enable = true;
-      tmux.enableShellIntegration = true;
-      enableFishIntegration = false;
-    };
+      fd = {
+        enable = true;
+        extraOptions = [
+          "--hidden"
+          "--follow"
+          "--exclude"
+          ".git"
+          "--exclude"
+          "node_modules"
+          "--exclude"
+          ".steam"
+          "--exclude"
+          ".local/share/trash"
+        ];
+      };
 
-    fd = {
-      enable = true;
-      extraOptions = [
-        "--hidden"
-        "--follow"
-        "--exclude"
-        ".git"
-        "--exclude"
-        "node_modules"
-        "--exclude"
-        ".steam"
-        "--exclude"
-        ".local/share/trash"
-      ];
-    };
+      bat = {
+        enable = true;
+        config = {
+          style = "numbers";
+          paging = "never";
+        };
+      };
 
-    bat = {
-      enable = true;
-      config = {
-        style = "numbers";
-        paging = "never";
+      nix-index = {
+        enable = true;
+      };
+
+      starship = {
+        enable = true;
+        enableTransience = true;
+      };
+
+      ripgrep = {
+        enable = true;
+        arguments = ["--smart-case" "--hidden" "--glob=!.git/*"];
+      };
+
+      pay-respects = {
+        enable = true;
       };
     };
+  };
 
-    nix-index = {
-      enable = true;
-    };
-
-    starship = {
-      enable = true;
-      enableTransience = true;
-    };
-
-    ripgrep = {
-      enable = true;
-      arguments = ["--smart-case" "--hidden" "--glob=!.git/*"];
-    };
-
-    pay-respects = {
-      enable = true;
-    };
+  # Main user gets all the packages these programs provide
+  home-manager.users.${username} = {
+    home.packages = with pkgs; [
+      xdg-utils
+      tldr
+      direnv
+      nix-direnv
+      nix-your-shell
+      zoxide
+      eza
+      fzf
+      fd
+      bat
+      nix-index
+      starship
+      ripgrep
+      pay-respects
+    ];
   };
 }

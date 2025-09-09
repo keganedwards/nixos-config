@@ -1,13 +1,17 @@
 # /modules/programs/terminal-shell/hm/default.nix
-{
+{username, ...}: {
   imports = [
-    ./aliases.nix
-    ./functions
-    ./init.nix
     ./security.nix
   ];
 
-  programs.fish = {
-    enable = true;
+  home-manager.users."protect-${username}" = {
+    imports = [
+      ./aliases.nix
+      ./functions
+      ./init.nix
+    ];
+    programs.fish = {
+      enable = true;
+    };
   };
 }
