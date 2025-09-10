@@ -10,13 +10,17 @@
   protectedUsername = "protect-${username}";
   sshPassphraseSecretFile = config.sops.secrets."ssh-key-passphrase".path;
 
-  # Create ssh-askpass in /run/wrappers equivalent location
+  githubHostKeys = ''
+    github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+    github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=
+  '';
+
   ssh-askpass = pkgs.writeShellScriptBin "ssh-askpass" ''
     #!${pkgs.stdenv.shell}
     exec /run/wrappers/bin/sudo ${pkgs.coreutils}/bin/cat ${sshPassphraseSecretFile}
   '';
 in {
-  # Install ssh-askpass system-wide in a protected location
+  # Install ssh-askpass system-wide
   environment.systemPackages = [ssh-askpass];
 
   # Protected user manages all configurations
@@ -25,13 +29,15 @@ in {
     home.file.".config/environment.d/ssh-askpass.conf".text = ''
       SSH_ASKPASS=${ssh-askpass}/bin/ssh-askpass
       SSH_ASKPASS_REQUIRE=force
+      DISPLAY=:0
     '';
 
-    # Set SSH askpass in fish shell via shellInit
+    # Set in fish shell
     programs.fish.shellInit = ''
-      # Override SSH askpass settings with our secure version
+      # SSH askpass settings
       set -gx SSH_ASKPASS "${ssh-askpass}/bin/ssh-askpass"
       set -gx SSH_ASKPASS_REQUIRE force
+      set -q DISPLAY; or set -gx DISPLAY :0
     '';
 
     home.file = {
@@ -40,6 +46,10 @@ in {
       };
       ".ssh/allowed_signers" = {
         text = "${email} ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKSRQ9CKzXZ9mfwykoTSxqOAIov20LfQxzyLX+444M1x";
+      };
+      # Add known_hosts file with GitHub's host keys
+      ".ssh/known_hosts" = {
+        text = githubHostKeys;
       };
     };
 
@@ -56,28 +66,48 @@ in {
           user.signingkey = "~/.ssh/id_ed25519.pub";
           gpg.ssh.allowedSignersFile = "~/.ssh/allowed_signers";
           init.defaultBranch = "main";
-          core.sshCommand = "ssh -o SendEnv='SSH_ASKPASS SSH_ASKPASS_REQUIRE'";
+          core.sshCommand = "ssh";
         };
       };
 
       ssh = {
         enable = true;
-        enableDefaultConfig = false;
 
-        matchBlocks."*" = {
-          forwardAgent = false;
-          addKeysToAgent = "no";
-          controlMaster = "no";
-          controlPath = "none";
-          controlPersist = "no";
-          compression = false;
-          serverAliveInterval = 0;
-          serverAliveCountMax = 3;
-          hashKnownHosts = true;
-          userKnownHostsFile = "~/.ssh/known_hosts";
-          identitiesOnly = true;
-          sendEnv = ["LANG" "LC_*" "SSH_ASKPASS" "SSH_ASKPASS_REQUIRE"];
-        };
+        extraConfig = ''
+          # Global SSH client configuration
+          Host *
+              # Disable agent forwarding for security
+              ForwardAgent no
+              # Don't add keys to agent
+              AddKeysToAgent no
+              # Disable connection sharing
+              ControlMaster no
+              ControlPath none
+              ControlPersist no
+              # Basic settings
+              Compression no
+              ServerAliveInterval 60
+              ServerAliveCountMax 3
+              # Don't hash known hosts since we're managing them explicitly
+              HashKnownHosts no
+              # Use only the specific identity file
+              IdentitiesOnly yes
+              # Single password attempt
+              NumberOfPasswordPrompts 1
+              PreferredAuthentications publickey
+              PubkeyAuthentication yes
+              PasswordAuthentication no
+              # Strict host key checking
+              StrictHostKeyChecking yes
+              UserKnownHostsFile ~/.ssh/known_hosts
+
+          Host github.com
+              Hostname github.com
+              User git
+              IdentityFile ~/.ssh/id_ed25519
+              IdentitiesOnly yes
+              PreferredAuthentications publickey
+        '';
       };
     };
   };
