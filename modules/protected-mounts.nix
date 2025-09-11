@@ -285,11 +285,15 @@ in {
     "f ${lockFile} 0644 root root -"
   ];
 
-  system.activationScripts."ensure-protected-mounts-${username}" = ''
-    if ${pkgs.systemd}/bin/systemctl is-enabled --quiet protected-mount-${username}.service 2>/dev/null; then
-      if ! ${pkgs.systemd}/bin/systemctl is-active --quiet protected-mount-${username}.service; then
-        ${pkgs.systemd}/bin/systemctl start protected-mount-${username}.service || true
-      fi
+  # This ensures the service runs after HM activation
+  system.activationScripts."ensure-protected-mounts-${username}" = lib.mkAfter ''
+    # Always restart the service after system activation to pick up new mounts
+    if ${pkgs.systemd}/bin/systemctl is-active --quiet protected-mount-${username}.service 2>/dev/null; then
+      echo "Restarting protected-mount-${username}.service to apply new mounts..."
+      ${pkgs.systemd}/bin/systemctl restart protected-mount-${username}.service || true
+    elif ${pkgs.systemd}/bin/systemctl is-enabled --quiet protected-mount-${username}.service 2>/dev/null; then
+      echo "Starting protected-mount-${username}.service..."
+      ${pkgs.systemd}/bin/systemctl start protected-mount-${username}.service || true
     fi
   '';
 
@@ -312,11 +316,15 @@ in {
       description = "Mount protected files for ${username}";
       wantedBy = ["multi-user.target"];
       after = [
-        "home-manager-protect\\x2d${username}.service"
+        "home-manager-${protectedUsername}.service"
         "home-manager-${username}.service"
       ];
       requires = [
         "home-manager-${username}.service"
+      ];
+      # Ensure it runs after the protected user's HM service
+      wants = [
+        "home-manager-${protectedUsername}.service"
       ];
 
       unitConfig = {
@@ -336,10 +344,27 @@ in {
         TimeoutStopSec = "20s";
       };
 
+      # This is key - it will restart the service when the scripts change
       restartTriggers = [
         mountScript
         unmountScript
+        # Also restart when the protected user's HM generation changes
+        (builtins.toString (config.home-manager.users.${protectedUsername}.home.activationPackage or ""))
       ];
+    };
+
+    # Add a service that restarts the mount service after the protected user's HM activation
+    "protected-mount-${username}-restart" = {
+      description = "Restart protected mounts after ${protectedUsername} HM activation";
+      after = ["home-manager-${protectedUsername}.service"];
+      wantedBy = ["home-manager-${protectedUsername}.service"];
+
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = false;
+        ExecStart = "${pkgs.systemd}/bin/systemctl restart protected-mount-${username}.service";
+        TimeoutStartSec = "20s";
+      };
     };
   };
 }
