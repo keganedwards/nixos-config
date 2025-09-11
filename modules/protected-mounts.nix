@@ -40,21 +40,26 @@
 
   allProtectedPaths = extractFilePaths protectedConfig;
 
-  isContainer = path:
-    lib.any (
-      otherPath:
-        (path != otherPath) && (lib.hasPrefix "${path}/" otherPath)
-    )
-    allProtectedPaths;
+  # Only get actual files, not directories
+  getFilePaths = paths:
+    lib.filter (path: let
+      hasChildren =
+        lib.any (
+          otherPath:
+            otherPath != path && lib.hasPrefix "${path}/" otherPath
+        )
+        paths;
+    in
+      !hasChildren)
+    paths;
 
-  leafPaths = lib.filter (path: !isContainer path) allProtectedPaths;
+  filePaths = getFilePaths allProtectedPaths;
 
-  # Get all parent directories that need protection (to prevent mv attacks)
+  # Get all parent directories that need protection
   getParentDirs = paths:
     lib.unique (
       lib.flatten (map (path: let
         parts = lib.splitString "/" path;
-        # Create list of all parent paths
         makeParents = n:
           if n <= 0
           then []
@@ -64,7 +69,7 @@
       paths)
     );
 
-  parentDirs = getParentDirs allProtectedPaths;
+  parentDirs = getParentDirs filePaths;
 
   mountScript = pkgs.writeShellScript "mount-protected" ''
     set -euo pipefail
@@ -85,137 +90,127 @@
       exit 1
     fi
 
-    safe_unmount() {
-      local mount_point="$1"
-      local max_attempts=3
-      local attempt=0
+    # Comprehensive function to clean a path of all protection
+    clean_path() {
+      local path="$1"
 
-      while mountpoint -q "$mount_point" 2>/dev/null && [ $attempt -lt $max_attempts ]; do
-        umount "$mount_point" 2>/dev/null || umount -l "$mount_point" 2>/dev/null || true
-        attempt=$((attempt + 1))
-        [ $attempt -lt $max_attempts ] && sleep 0.1
-      done
+      # First try to remove immutable flag
+      chattr -i "$path" 2>/dev/null || true
 
-      if mountpoint -q "$mount_point" 2>/dev/null; then
-        umount -l "$mount_point" 2>/dev/null || true
+      # If it's a mount point, unmount it
+      if mountpoint -q "$path" 2>/dev/null; then
+        local max_attempts=5
+        local attempt=0
+
+        while mountpoint -q "$path" 2>/dev/null && [ $attempt -lt $max_attempts ]; do
+          # Try normal unmount first
+          umount "$path" 2>/dev/null || {
+            # If that fails, try lazy unmount
+            umount -l "$path" 2>/dev/null || true
+          }
+          attempt=$((attempt + 1))
+          [ $attempt -lt $max_attempts ] && sleep 0.1
+        done
+
+        # Final attempt with force if still mounted
+        if mountpoint -q "$path" 2>/dev/null; then
+          umount -l "$path" 2>/dev/null || true
+        fi
       fi
+
+      # Remove immutable flag again in case unmounting revealed the underlying file
+      chattr -i "$path" 2>/dev/null || true
     }
 
     # Clean up ALL existing mounts and immutable flags first
     echo "Cleaning up existing state..."
 
-    # Remove immutable from conf.d
-    chattr -i "${targetHome}/.config/fish/conf.d" 2>/dev/null || true
-    safe_unmount "${targetHome}/.config/fish/conf.d"
-
-    # Remove immutable from all protected paths and unmount
-    ${lib.concatMapStringsSep "\n" (path: ''
-      dst_path="${targetHome}/${path}"
-      if [ -e "$dst_path" ]; then
-        chattr -i "$dst_path" 2>/dev/null || true
-        safe_unmount "$dst_path"
-      fi
-    '') (lib.reverseList leafPaths)}
-
-    # Remove immutable from all parent directories that we protected
+    # First pass: clean all parent directories (bottom-up to avoid conflicts)
     ${lib.concatMapStringsSep "\n" (dir: ''
       parent_path="${targetHome}/${dir}"
-      if [ -d "$parent_path" ]; then
-        chattr -i "$parent_path" 2>/dev/null || true
+      if [ -e "$parent_path" ]; then
+        clean_path "$parent_path"
       fi
     '') (lib.reverseList parentDirs)}
 
-    # Ensure parent directories exist with correct permissions
+    # Second pass: clean all file paths
+    ${lib.concatMapStringsSep "\n" (path: ''
+      dst_path="${targetHome}/${path}"
+      if [ -e "$dst_path" ]; then
+        clean_path "$dst_path"
+      fi
+    '') (lib.reverseList filePaths)}
+
+    # Third pass: ensure parent directories exist and have correct permissions
     echo "Setting up directory structure..."
     ${lib.concatMapStringsSep "\n" (dir: ''
         parent_path="${targetHome}/${dir}"
+
+        # Create directory if it doesn't exist
         if [ ! -d "$parent_path" ]; then
           mkdir -p "$parent_path"
         fi
-        chown ${username}:users "$parent_path"
-        chmod 755 "$parent_path"
+
+        # Ensure it's not mounted or immutable before changing ownership
+        clean_path "$parent_path"
+
+        # Set ownership and permissions
+        chown ${username}:users "$parent_path" 2>/dev/null || {
+          echo "  ⚠ Could not chown ${dir} (may be okay if parent is protected)" >&2
+        }
+        chmod 755 "$parent_path" 2>/dev/null || true
       '')
       parentDirs}
 
-    # Mount conf.d (only hardcoded special case)
-    if [ -d "${protectedHome}/.config/fish/conf.d" ]; then
-      echo "Setting up protected conf.d..."
-      mkdir -p "${targetHome}/.config/fish/conf.d"
-      chown ${username}:users "${targetHome}/.config/fish/conf.d"
-      chmod 755 "${targetHome}/.config/fish/conf.d"
-
-      if mount --bind "${protectedHome}/.config/fish/conf.d" "${targetHome}/.config/fish/conf.d"; then
-        if mount -o remount,ro,bind "${targetHome}/.config/fish/conf.d"; then
-          chattr +i "${targetHome}/.config/fish/conf.d" 2>/dev/null || true
-          echo "  ✓ conf.d mounted"
-        fi
-      fi
-    fi
-
-    # Mount all leaf paths with proper permissions
+    # Mount all files with proper permissions
     echo "Mounting protected files..."
     ${lib.concatStringsSep "\n" (map (path: ''
         src_path="${protectedHome}/${path}"
         dst_path="${targetHome}/${path}"
 
-        if [ -e "$src_path" ]; then
-          if [ -d "$src_path" ]; then
-            # Directory
-            if [ ! -d "$dst_path" ]; then
-              mkdir -p "$dst_path"
-            fi
-            chown ${username}:users "$dst_path"
-            chmod 755 "$dst_path"
+        if [ -f "$src_path" ]; then
+          # Ensure the destination is clean
+          clean_path "$dst_path"
 
-            if mount --bind "$src_path" "$dst_path"; then
-              if mount -o remount,ro,bind "$dst_path"; then
-                chattr +i "$dst_path" 2>/dev/null || true
-                echo "  ✓ ${path}"
-              else
-                echo "  ! Failed remount: ${path}" >&2
-                umount "$dst_path" 2>/dev/null || true
-              fi
-            fi
-          elif [ -f "$src_path" ]; then
-            # File - create with proper permissions
-            rm -f "$dst_path" 2>/dev/null || true
-            touch "$dst_path"
-            chown ${username}:users "$dst_path"
-            chmod 644 "$dst_path"
+          # Create or recreate the destination file
+          rm -f "$dst_path" 2>/dev/null || true
+          touch "$dst_path"
+          chown ${username}:users "$dst_path"
+          chmod 644 "$dst_path"
 
-            if mount --bind "$src_path" "$dst_path"; then
-              if mount -o remount,ro,bind "$dst_path"; then
-                chattr +i "$dst_path" 2>/dev/null || true
-                echo "  ✓ ${path}"
-              else
-                echo "  ! Failed remount: ${path}" >&2
-                umount "$dst_path" 2>/dev/null || true
-              fi
+          # Atomic mount and remount as read-only
+          if mount --bind "$src_path" "$dst_path"; then
+            if mount -o remount,ro,bind "$dst_path"; then
+              # Make immutable after successful read-only mount
+              chattr +i "$dst_path" 2>/dev/null || true
+              echo "  ✓ ${path}"
+            else
+              echo "  ! Failed to remount read-only: ${path}" >&2
+              umount "$dst_path" 2>/dev/null || true
             fi
+          else
+            echo "  ! Failed to mount: ${path}" >&2
           fi
+        elif [ -d "$src_path" ]; then
+          echo "  ⚠ Skipping directory: ${path}" >&2
         fi
       '')
-      leafPaths)}
+      filePaths)}
 
     # Make parent directories immutable to prevent mv attacks
-    # But only the ones that contain protected files
+    # Only protect directories that actually contain mounted files
     echo "Protecting parent directories from mv attacks..."
     ${lib.concatMapStringsSep "\n" (dir: ''
         parent_path="${targetHome}/${dir}"
         if [ -d "$parent_path" ]; then
           # Check if this directory actually contains any mounted files
           has_mounts=false
-          ${lib.concatMapStringsSep "\n" (path: ''
-            if [[ "${path}" == ${dir}/* ]] && mountpoint -q "${targetHome}/${path}" 2>/dev/null; then
+          for file in "$parent_path"/*; do
+            if [ -f "$file" ] && mountpoint -q "$file" 2>/dev/null; then
               has_mounts=true
+              break
             fi
-          '')
-          leafPaths}
-
-          # Also check for conf.d
-          if [[ ".config/fish" == "${dir}" ]] && mountpoint -q "${targetHome}/.config/fish/conf.d" 2>/dev/null; then
-            has_mounts=true
-          fi
+          done
 
           if [ "$has_mounts" = true ]; then
             chattr +i "$parent_path" 2>/dev/null && \
@@ -243,36 +238,44 @@
 
     echo "Unmounting protected files..."
 
-    safe_unmount() {
-      local mount_point="$1"
-      chattr -i "$mount_point" 2>/dev/null || true
+    # Comprehensive function to clean a path of all protection
+    clean_path() {
+      local path="$1"
 
-      local max_attempts=3
-      local attempt=0
-      while mountpoint -q "$mount_point" 2>/dev/null && [ $attempt -lt $max_attempts ]; do
-        umount "$mount_point" 2>/dev/null || umount -l "$mount_point" 2>/dev/null || true
-        attempt=$((attempt + 1))
-        [ $attempt -lt $max_attempts ] && sleep 0.1
-      done
+      # First try to remove immutable flag
+      chattr -i "$path" 2>/dev/null || true
 
-      if mountpoint -q "$mount_point" 2>/dev/null; then
-        umount -l "$mount_point" 2>/dev/null || true
+      # If it's a mount point, unmount it
+      if mountpoint -q "$path" 2>/dev/null; then
+        local max_attempts=5
+        local attempt=0
+
+        while mountpoint -q "$path" 2>/dev/null && [ $attempt -lt $max_attempts ]; do
+          umount "$path" 2>/dev/null || umount -l "$path" 2>/dev/null || true
+          attempt=$((attempt + 1))
+          [ $attempt -lt $max_attempts ] && sleep 0.1
+        done
+
+        if mountpoint -q "$path" 2>/dev/null; then
+          umount -l "$path" 2>/dev/null || true
+        fi
       fi
-    }
 
-    # Remove immutable and unmount conf.d
-    safe_unmount "${targetHome}/.config/fish/conf.d"
+      # Remove immutable flag again
+      chattr -i "$path" 2>/dev/null || true
+    }
 
     # Remove immutable from all parent directories first
     ${lib.concatMapStringsSep "\n" (dir: ''
-      chattr -i "${targetHome}/${dir}" 2>/dev/null || true
+      parent_path="${targetHome}/${dir}"
+      [ -e "$parent_path" ] && clean_path "$parent_path"
     '') (lib.reverseList parentDirs)}
 
-    # Remove immutable and unmount leaf paths
+    # Remove immutable and unmount files
     ${lib.concatMapStringsSep "\n" (path: ''
       dst_path="${targetHome}/${path}"
-      [ -e "$dst_path" ] && safe_unmount "$dst_path"
-    '') (lib.reverseList leafPaths)}
+      [ -e "$dst_path" ] && clean_path "$dst_path"
+    '') (lib.reverseList filePaths)}
 
     echo "Unmount completed"
   '';
@@ -299,7 +302,7 @@ in {
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = false;
-        ExecStart = unmountScript;
+        ExecStart = "${unmountScript}";
         TimeoutStartSec = "20s";
         KillMode = "mixed";
       };
@@ -324,15 +327,13 @@ in {
         Type = "oneshot";
         RemainAfterExit = true;
         ExecStartPre = [
-          unmountScript
+          "${unmountScript}"
           "${pkgs.coreutils}/bin/sleep 0.5"
         ];
-        ExecStart = mountScript;
-        ExecStop = unmountScript;
+        ExecStart = "${mountScript}";
+        ExecStop = "${unmountScript}";
         TimeoutStartSec = "20s";
         TimeoutStopSec = "20s";
-        Restart = "on-failure";
-        RestartSec = "2s";
       };
 
       restartTriggers = [
