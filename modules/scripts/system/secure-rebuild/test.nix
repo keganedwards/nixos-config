@@ -54,7 +54,7 @@
   '';
 
   # Main script that runs WITHOUT sudo initially
-  nixos-test-wrapper = pkgs.writeShellScriptBin "nixos-test" ''
+  nixos-test-wrapper = pkgs.writeShellScriptBin "nt" ''
     #!${pkgs.bash}/bin/bash
     set -euo pipefail
 
@@ -331,14 +331,10 @@ in {
     enable = true;
   };
 
-  home-manager.users.${username} = {
-    home.packages = [
-      nixos-test-build
-      nixos-test-wrapper
-    ];
-
-    home.shellAliases.nt = "nixos-test";
-  };
+  environment.systemPackages = with pkgs; [
+    nixos-test-build
+    nixos-test-wrapper
+  ];
 
   security.sudo-rs.extraRules = [
     {

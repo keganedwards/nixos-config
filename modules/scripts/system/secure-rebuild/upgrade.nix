@@ -151,8 +151,7 @@ in {
     }
   ];
 
-  # Create convenient aliases for the user
-  home-manager.users.${username}.home.packages = [
+  environment.systemPackages = [
     (pkgs.writeShellApplication {
       name = "upgrade-and-reboot";
       runtimeInputs = [pkgs.systemd];
