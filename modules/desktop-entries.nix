@@ -1,4 +1,4 @@
-# /modules/desktop-entries.nix
+# modules/home-manager/desktop-entries.nix
 {
   config,
   lib,
@@ -34,6 +34,81 @@
       appConfig = appCfg;
     }) (config.applications or {}));
 
+  # Collect MIME associations from all apps
+  collectMimeAssociations = let
+    allApps = config.applications or {};
+
+    # For each app that wants to be a default handler
+    defaultHandlerEntries = lib.flatten (
+      lib.mapAttrsToList (
+        appKey: appCfg: let
+          desktopCfg = appCfg.desktopFile or {};
+          mimeTypes = desktopCfg.defaultAssociations or [];
+          isDefault = desktopCfg.isDefaultHandler or false;
+          appInfo = appCfg.appInfo or {};
+          displayName = desktopCfg.displayName or appInfo.name or appKey;
+          desktopFileName = "${sanitizeForFilename displayName}.desktop";
+        in
+          if isDefault && mimeTypes != [] && (desktopCfg.generate or false)
+          then
+            map (mimeType: {
+              inherit mimeType;
+              desktop = desktopFileName;
+            })
+            mimeTypes
+          else []
+      )
+      allApps
+    );
+
+    # Group by MIME type (in case multiple apps claim the same type)
+    groupedByMime = builtins.groupBy (entry: entry.mimeType) defaultHandlerEntries;
+
+    # Take the last one for each MIME type (later definitions win)
+    defaultApplications =
+      lib.mapAttrs (
+        _mime: entries:
+          if entries != []
+          then (lib.last entries).desktop
+          else null
+      )
+      groupedByMime;
+
+    # Also create added associations (all apps that handle a mime type)
+    addedAssociations = let
+      allHandlers = lib.flatten (
+        lib.mapAttrsToList (
+          appKey: appCfg: let
+            desktopCfg = appCfg.desktopFile or {};
+            mimeTypes = desktopCfg.defaultAssociations or [];
+            appInfo = appCfg.appInfo or {};
+            displayName = desktopCfg.displayName or appInfo.name or appKey;
+            desktopFileName = "${sanitizeForFilename displayName}.desktop";
+          in
+            if mimeTypes != [] && (desktopCfg.generate or false)
+            then
+              map (mimeType: {
+                inherit mimeType;
+                desktop = desktopFileName;
+              })
+              mimeTypes
+            else []
+        )
+        allApps
+      );
+      grouped = builtins.groupBy (entry: entry.mimeType) allHandlers;
+    in
+      lib.mapAttrs (
+        _mime: entries:
+          lib.unique (map (e: e.desktop) entries)
+      )
+      grouped;
+  in {
+    inherit defaultApplications addedAssociations;
+  };
+
+  mimeAssociations = collectMimeAssociations;
+
   fileEntries =
     lib.map
     (item: let
@@ -48,7 +123,6 @@
       commandToExecuteInWrapper = getRawExecCommand appCfg;
       isTerminalApp = appInfo.isTerminalApp or false;
 
-      # This is the key logic: a different wrapper for terminal vs. GUI apps.
       wrapperScriptContent =
         if isTerminalApp
         then ''
@@ -120,9 +194,18 @@
     ])
     appsToGenerate;
 in {
+  xdg.mimeApps = {
+    enable = true;
+    inherit (mimeAssociations) defaultApplications;
+    associations.added = mimeAssociations.addedAssociations;
+  };
+
+  xdg.configFile."mimeapps.list".force = true;
+
   home = {
     packages = [
       pkgs.desktop-file-utils
+      pkgs.xdg-utils
     ];
 
     file = lib.listToAttrs (lib.flatten fileEntries);
@@ -130,7 +213,6 @@ in {
     activation = {
       updateDesktopDatabase = lib.hm.dag.entryAfter ["writeBoundary"] ''
         set -e
-        # Ensure the target directory exists before trying to update it.
         mkdir -p "${config.home.homeDirectory}/.local/share/applications"
 
         if command -v update-desktop-database >/dev/null 2>&1; then
@@ -138,6 +220,15 @@ in {
           update-desktop-database -q "${config.home.homeDirectory}/.local/share/applications"
         else
           echo "Warning: update-desktop-database command not found. Skipping." >&2
+        fi
+      '';
+
+      updateMimeDatabase = lib.hm.dag.entryAfter ["updateDesktopDatabase"] ''
+        set -e
+        if command -v update-mime-database >/dev/null 2>&1; then
+          echo "Updating MIME database..."
+          mkdir -p "${config.home.homeDirectory}/.local/share/mime"
+          update-mime-database "${config.home.homeDirectory}/.local/share/mime" 2>/dev/null || true
         fi
       '';
     };
