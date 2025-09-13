@@ -37,9 +37,37 @@
             then {"${workspaceName}" = criteriaList;}
             else {}
           else {};
+
+        # Generate window rules for floating windows
+        windowRulesForThisApp =
+          if swayAppIdCriteria != null && workspaceName != null
+          then let
+            appIdList =
+              if lib.isList swayAppIdCriteria
+              then swayAppIdCriteria
+              else [swayAppIdCriteria];
+          in
+            lib.flatten (lib.map (idString: [
+                {
+                  command = "move container to workspace ${workspaceName}";
+                  criteria = {
+                    app_id = "^${escapeRegex idString}$";
+                  };
+                }
+                # Optional: Also switch to that workspace when the window opens
+                {
+                  command = "workspace ${workspaceName}";
+                  criteria = {
+                    app_id = "^${escapeRegex idString}$";
+                  };
+                }
+              ])
+              appIdList)
+          else [];
       in {
         keybindings = keybindingsForThisApp;
         assignments = assignmentsForThisApp;
+        windowRules = windowRulesForThisApp;
       }
     )
     processedApps;
@@ -57,10 +85,14 @@
       )
       acc (lib.attrNames currentEntryAssignments)
   ) {} (map (cfg: cfg.assignments or {}) generatedSwayConfigsPerApp);
+
+  # Collect all window rules
+  allWindowRules = lib.flatten (map (cfg: cfg.windowRules or []) generatedSwayConfigsPerApp);
 in {
   wayland.windowManager.sway.config = {
     keybindings = allKeybindings;
     assigns = allAssigns;
+    window.commands = allWindowRules;
     # You could add other global Sway settings here if needed
     # e.g., seat = "* hide_cursor when-typing enable";
   };

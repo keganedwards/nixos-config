@@ -29,7 +29,7 @@
     (importDef ./t-terminal)
     (importDef ./y-virtualization.nix)
     (importDef ./u-spreadsheet-calculator.nix)
-    (importDef ./media-player/i-image-viewer.nix)
+    (importDef ./i-image-viewer.nix)
     (importDef ./o-screen-recorder.nix)
     (importDef ./browser/p-private-browser.nix)
     (importDef ./bracketleft-torrent-music.nix)

@@ -18,12 +18,7 @@ in {
         mpv-playlistmanager
         eisa01.smartskip
         eisa01.smart-copy-paste-2
-        mpv-image-viewer.equalizer
-        mpv-image-viewer.status-line
-        mpv-image-viewer.detect-image
-        mpv-image-viewer.freeze-window
-        mpv-image-viewer.image-positioning
-        mpv-image-viewer.minimap
+        # Removed all mpv-image-viewer scripts
       ];
       mpv = pkgs.mpv-unwrapped.override {
         waylandSupport = true;
