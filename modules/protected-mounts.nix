@@ -88,12 +88,12 @@
       local dir_path="$1"
       # Never make .config/environment.d immutable
       [[ "$dir_path" == *"/.config/environment.d" ]] && return 0
-      # Never make .config immutable if it contains excluded files
+      # Never make .config immutable
       [[ "$dir_path" == *"/.config" ]] && return 0
       return 1
     }
 
-    # Clean up excluded files first to ensure they don't interfere
+    # Clean up excluded files first
     echo "Cleaning up excluded files..."
     ${lib.concatMapStringsSep "\n" (file: ''
         excluded_path="${targetHome}/${file}"
@@ -103,21 +103,11 @@
       '')
       excludeFiles}
 
-    # Atomically remove all immutable attributes using fd (fast)
-    echo "Removing existing immutable attributes..."
-    fd --hidden --no-ignore --type d ${fdExcludeArgs} . "${targetHome}" --exec chattr -i {} \; 2>/dev/null || true
-    fd --hidden --no-ignore --type f ${fdExcludeArgs} . "${targetHome}" --exec chattr -i {} \; 2>/dev/null || true
-
-    # Clean up any existing mounts
-    echo "Cleaning up existing mounts..."
-    while IFS= read -r mount_point; do
-      clean_path "$mount_point"
-    done < <(mount | rg -F "${targetHome}/" | awk '{print $3}' || true)
-
-    # Discover all files from protected home
+    # Discover all files from protected home - this gives us our complete list
     echo "Discovering files from protected home..."
     declare -a files_to_mount=()
     declare -a parent_dirs=()
+    declare -A parent_dirs_set=()
 
     # Find all files including hidden ones
     while IFS= read -r file_path; do
@@ -145,16 +135,31 @@
       if [ "''${#files_to_mount[@]}" -gt 0 ] && [ "''${files_to_mount[-1]}" == "$rel_path" ]; then
         parent_dir=$(dirname "$rel_path")
         while [[ "$parent_dir" != "." ]]; do
-          # Add to array if not already present
-          if [[ ! " ''${parent_dirs[@]:-} " =~ " $parent_dir " ]]; then
-            parent_dirs+=("$parent_dir")
-          fi
+          # Add to associative array for deduplication
+          parent_dirs_set["$parent_dir"]=1
           parent_dir=$(dirname "$parent_dir")
         done
       fi
     done < <(fd --hidden --no-ignore --type f --type l ${fdExcludeArgs} . "${protectedHome}" 2>/dev/null)
 
+    # Convert associative array keys to regular array
+    parent_dirs=("''${!parent_dirs_set[@]}")
+
     echo "Found ''${#files_to_mount[@]} files to mount"
+
+    # Clean up existing state - ONLY for paths we're managing
+    echo "Cleaning up existing state..."
+
+    # Clean all currently mounted files
+    while IFS= read -r mount_point; do
+      clean_path "$mount_point"
+    done < <(mount | rg -F "${targetHome}/" | awk '{print $3}' || true)
+
+    # Clean ONLY the parent directories we're about to use
+    for parent in "''${parent_dirs[@]:-}"; do
+      parent_path="${targetHome}/$parent"
+      [ -d "$parent_path" ] && clean_path "$parent_path"
+    done
 
     # Ensure parent directories exist
     echo "Setting up directory structure..."
@@ -274,12 +279,27 @@
       chattr -i "$path" 2>/dev/null || true
     }
 
-    # Use fd to efficiently remove all immutable attributes (much faster than find)
-    echo "Removing directory immutability..."
-    fd --hidden --no-ignore --type d ${fdExcludeArgs} . "${targetHome}" --exec chattr -i {} \; 2>/dev/null || true
+    # Get all currently mounted paths under target home
+    echo "Collecting mounted paths..."
+    declare -a mounted_paths=()
+    declare -A parent_dirs_set=()
 
-    echo "Removing file immutability..."
-    fd --hidden --no-ignore --type f ${fdExcludeArgs} . "${targetHome}" --exec chattr -i {} \; 2>/dev/null || true
+    while IFS= read -r mount_point; do
+      mounted_paths+=("$mount_point")
+
+      # Track parent directories
+      parent_dir=$(dirname "$mount_point")
+      while [[ "$parent_dir" != "${targetHome}" && "$parent_dir" != "/" ]]; do
+        parent_dirs_set["$parent_dir"]=1
+        parent_dir=$(dirname "$parent_dir")
+      done
+    done < <(mount | rg -F "${targetHome}/" | awk '{print $3}' || true)
+
+    # Remove immutable attribute from all parent directories first
+    echo "Removing directory immutability..."
+    for parent_dir in "''${!parent_dirs_set[@]}"; do
+      [ -d "$parent_dir" ] && chattr -i "$parent_dir" 2>/dev/null || true
+    done
 
     # Clean excluded files
     ${lib.concatMapStringsSep "\n" (file: ''
@@ -288,10 +308,11 @@
       '')
       excludeFiles}
 
-    # Clean all mounts under target home using ripgrep
-    while IFS= read -r mount_point; do
+    # Clean all mounted files
+    echo "Unmounting files..."
+    for mount_point in "''${mounted_paths[@]:-}"; do
       clean_path "$mount_point"
-    done < <(mount | rg -F "${targetHome}/" | awk '{print $3}' || true)
+    done
 
     echo "Unmount completed"
   '';

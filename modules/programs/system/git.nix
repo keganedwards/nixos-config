@@ -73,41 +73,52 @@ in {
       ssh = {
         enable = true;
 
-        extraConfig = ''
-          # Global SSH client configuration
-          Host *
-              # Disable agent forwarding for security
-              ForwardAgent no
-              # Don't add keys to agent
-              AddKeysToAgent no
-              # Disable connection sharing
-              ControlMaster no
-              ControlPath none
-              ControlPersist no
-              # Basic settings
-              Compression no
-              ServerAliveInterval 60
-              ServerAliveCountMax 3
-              # Don't hash known hosts since we're managing them explicitly
-              HashKnownHosts no
-              # Use only the specific identity file
-              IdentitiesOnly yes
-              # Single password attempt
-              NumberOfPasswordPrompts 1
-              PreferredAuthentications publickey
-              PubkeyAuthentication yes
-              PasswordAuthentication no
-              # Strict host key checking
-              StrictHostKeyChecking yes
-              UserKnownHostsFile ~/.ssh/known_hosts
+        # Explicitly disable default config to suppress the warning
+        enableDefaultConfig = false;
 
-          Host github.com
-              Hostname github.com
-              User git
-              IdentityFile ~/.ssh/id_ed25519
-              IdentitiesOnly yes
-              PreferredAuthentications publickey
-        '';
+        # Define all our configuration in matchBlocks
+        matchBlocks = {
+          # Global defaults (equivalent to Host *)
+          "*" = {
+            # Disable agent forwarding for security
+            forwardAgent = false;
+            # Don't add keys to agent
+            extraOptions = {
+              AddKeysToAgent = "no";
+              # Disable connection sharing
+              ControlMaster = "no";
+              ControlPath = "none";
+              ControlPersist = "no";
+              # Basic settings
+              Compression = "no";
+              ServerAliveInterval = "60";
+              ServerAliveCountMax = "3";
+              # Don't hash known hosts since we're managing them explicitly
+              HashKnownHosts = "no";
+              # Use only the specific identity file
+              IdentitiesOnly = "yes";
+              # Single password attempt
+              NumberOfPasswordPrompts = "1";
+              PreferredAuthentications = "publickey";
+              PubkeyAuthentication = "yes";
+              PasswordAuthentication = "no";
+              # Strict host key checking
+              StrictHostKeyChecking = "yes";
+              UserKnownHostsFile = "~/.ssh/known_hosts";
+            };
+          };
+
+          # GitHub specific configuration
+          "github.com" = {
+            hostname = "github.com";
+            user = "git";
+            identityFile = "~/.ssh/id_ed25519";
+            identitiesOnly = true;
+            extraOptions = {
+              PreferredAuthentications = "publickey";
+            };
+          };
+        };
       };
     };
   };
