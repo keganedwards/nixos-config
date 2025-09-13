@@ -23,7 +23,7 @@
   # Specific files to exclude
   excludeFiles = [
     ".config/environment.d/10-home-manager.conf"
-    ".config/systemd/user/tray.target" # Moved from excludeDirs
+    ".config/systemd/user/tray.target"
   ];
 
   # Build exclude arguments for fd (only for directories)
@@ -296,31 +296,7 @@ in {
     "f ${lockFile} 0644 root root -"
   ];
 
-  system.activationScripts."ensure-protected-mounts-${username}" = lib.mkAfter ''
-    if ${pkgs.systemd}/bin/systemctl is-active --quiet protected-mount-${username}.service 2>/dev/null; then
-      echo "Restarting protected-mount-${username}.service to apply new mounts..."
-      ${pkgs.systemd}/bin/systemctl restart protected-mount-${username}.service || true
-    elif ${pkgs.systemd}/bin/systemctl is-enabled --quiet protected-mount-${username}.service 2>/dev/null; then
-      echo "Starting protected-mount-${username}.service..."
-      ${pkgs.systemd}/bin/systemctl start protected-mount-${username}.service || true
-    fi
-  '';
-
   systemd.services = {
-    "protected-unmount-${username}" = {
-      description = "Unmount protected files for ${username} before HM activation";
-      before = ["home-manager-${username}.service"];
-      wantedBy = ["home-manager-${username}.service"];
-
-      serviceConfig = {
-        Type = "oneshot";
-        RemainAfterExit = false;
-        ExecStart = "${unmountScript}";
-        TimeoutStartSec = "20s";
-        KillMode = "mixed";
-      };
-    };
-
     "protected-mount-${username}" = {
       description = "Mount protected files for ${username}";
       wantedBy = ["multi-user.target"];
@@ -338,14 +314,14 @@ in {
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
+        # Clean up before mounting
         ExecStartPre = [
           "${unmountScript}"
           "${pkgs.coreutils}/bin/sleep 0.5"
         ];
         ExecStart = "${mountScript}";
-        ExecStop = "${unmountScript}";
+        # Remove ExecStop - we don't want to unmount when the service stops/restarts
         TimeoutStartSec = "30s";
-        TimeoutStopSec = "20s";
       };
 
       restartTriggers = [
@@ -363,8 +339,10 @@ in {
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = false;
+        # Wait for both HM services to fully complete
+        ExecStartPre = "${pkgs.bash}/bin/bash -c 'for i in {1..30}; do ${pkgs.systemd}/bin/systemctl is-active home-manager-${protectedUsername}.service >/dev/null 2>&1 && ${pkgs.systemd}/bin/systemctl is-active home-manager-${username}.service >/dev/null 2>&1 && break; sleep 1; done'";
         ExecStart = "${pkgs.systemd}/bin/systemctl restart protected-mount-${username}.service";
-        TimeoutStartSec = "20s";
+        TimeoutStartSec = "60s";
       };
     };
   };
