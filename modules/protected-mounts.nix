@@ -1,4 +1,3 @@
-# protected-mount.nix
 {
   config,
   lib,
@@ -24,6 +23,8 @@
   excludeFiles = [
     ".config/environment.d/10-home-manager.conf"
     ".config/systemd/user/tray.target"
+    ".config/user-dirs.conf"
+    ".config/user-dirs.dirs"
   ];
 
   # Build exclude arguments for fd (only for directories)
@@ -82,18 +83,38 @@
       return 1
     }
 
+    # Check if a directory should be excluded from immutability
+    should_exclude_dir() {
+      local dir_path="$1"
+      # Never make .config/environment.d immutable
+      [[ "$dir_path" == *"/.config/environment.d" ]] && return 0
+      # Never make .config immutable if it contains excluded files
+      [[ "$dir_path" == *"/.config" ]] && return 0
+      return 1
+    }
+
     # Clean up excluded files first to ensure they don't interfere
     echo "Cleaning up excluded files..."
     ${lib.concatMapStringsSep "\n" (file: ''
         excluded_path="${targetHome}/${file}"
         if [ -e "$excluded_path" ]; then
           clean_path "$excluded_path"
-          rm -f "$excluded_path" 2>/dev/null || true
         fi
       '')
       excludeFiles}
 
-    # Discover all files (both regular files and symlinks)
+    # Atomically remove all immutable attributes using fd (fast)
+    echo "Removing existing immutable attributes..."
+    fd --hidden --no-ignore --type d ${fdExcludeArgs} . "${targetHome}" --exec chattr -i {} \; 2>/dev/null || true
+    fd --hidden --no-ignore --type f ${fdExcludeArgs} . "${targetHome}" --exec chattr -i {} \; 2>/dev/null || true
+
+    # Clean up any existing mounts
+    echo "Cleaning up existing mounts..."
+    while IFS= read -r mount_point; do
+      clean_path "$mount_point"
+    done < <(mount | rg -F "${targetHome}/" | awk '{print $3}' || true)
+
+    # Discover all files from protected home
     echo "Discovering files from protected home..."
     declare -a files_to_mount=()
     declare -a parent_dirs=()
@@ -135,20 +156,6 @@
 
     echo "Found ''${#files_to_mount[@]} files to mount"
 
-    # Clean up existing state
-    echo "Cleaning up existing state..."
-
-    # Clean all currently mounted files using ripgrep for faster filtering
-    while IFS= read -r mount_point; do
-      clean_path "$mount_point"
-    done < <(mount | rg -F "${targetHome}/" | awk '{print $3}' || true)
-
-    # Clean parent directories that need to be recreated
-    for parent in "''${parent_dirs[@]:-}"; do
-      parent_path="${targetHome}/$parent"
-      [ -d "$parent_path" ] && clean_path "$parent_path"
-    done
-
     # Ensure parent directories exist
     echo "Setting up directory structure..."
     for parent in "''${parent_dirs[@]:-}"; do
@@ -182,27 +189,34 @@
         # Ensure destination is clean
         clean_path "$dst_path"
 
-        # Create empty file
+        # Create empty file with proper ownership FIRST
         rm -f "$dst_path" 2>/dev/null || true
         touch "$dst_path"
         chown ${username}:users "$dst_path"
         chmod 644 "$dst_path"
 
-        # Mount and make read-only
+        # Mount and make read-only (atomic operation)
         if mount --bind "$resolved_src" "$dst_path" && mount -o remount,ro,bind "$dst_path"; then
           chattr +i "$dst_path" 2>/dev/null || true
           mount_count=$((mount_count + 1))
         else
           echo "  ! Failed: $rel_path" >&2
           umount "$dst_path" 2>/dev/null || true
+          rm -f "$dst_path" 2>/dev/null || true
         fi
       fi
     done
 
-    # Protect parent directories
+    # Protect parent directories (but skip excluded ones)
     echo "Protecting parent directories..."
     for parent in "''${parent_dirs[@]:-}"; do
       parent_path="${targetHome}/$parent"
+
+      # Skip directories that should not be immutable
+      if should_exclude_dir "$parent_path"; then
+        echo "  ⊘ Skipping protection for: $parent (excluded)"
+        continue
+      fi
 
       # Check if directory contains any mounted files
       has_mounts=false
@@ -225,7 +239,7 @@
 
   unmountScript = pkgs.writeShellScript "unmount-protected" ''
     set -euo pipefail
-    export PATH="${pkgs.util-linux}/bin:${pkgs.coreutils}/bin:${pkgs.e2fsprogs}/bin:${pkgs.gawk}/bin:${pkgs.ripgrep}/bin:$PATH"
+    export PATH="${pkgs.util-linux}/bin:${pkgs.coreutils}/bin:${pkgs.e2fsprogs}/bin:${pkgs.fd}/bin:${pkgs.gawk}/bin:${pkgs.ripgrep}/bin:$PATH"
 
     exec 200>"${lockFile}"
     if ! flock -w 10 -x 200; then
@@ -260,7 +274,14 @@
       chattr -i "$path" 2>/dev/null || true
     }
 
-    # Clean excluded files first
+    # Use fd to efficiently remove all immutable attributes (much faster than find)
+    echo "Removing directory immutability..."
+    fd --hidden --no-ignore --type d ${fdExcludeArgs} . "${targetHome}" --exec chattr -i {} \; 2>/dev/null || true
+
+    echo "Removing file immutability..."
+    fd --hidden --no-ignore --type f ${fdExcludeArgs} . "${targetHome}" --exec chattr -i {} \; 2>/dev/null || true
+
+    # Clean excluded files
     ${lib.concatMapStringsSep "\n" (file: ''
         excluded_path="${targetHome}/${file}"
         [ -e "$excluded_path" ] && clean_path "$excluded_path"
@@ -270,13 +291,6 @@
     # Clean all mounts under target home using ripgrep
     while IFS= read -r mount_point; do
       clean_path "$mount_point"
-
-      # Clean parent directories
-      parent_dir=$(dirname "$mount_point")
-      while [[ "$parent_dir" != "${targetHome}" && "$parent_dir" != "/" ]]; do
-        [ -d "$parent_dir" ] && clean_path "$parent_dir"
-        parent_dir=$(dirname "$parent_dir")
-      done
     done < <(mount | rg -F "${targetHome}/" | awk '{print $3}' || true)
 
     echo "Unmount completed"
@@ -300,12 +314,18 @@ in {
     "protected-mount-${username}" = {
       description = "Mount protected files for ${username}";
       wantedBy = ["multi-user.target"];
+
+      # CRITICAL: Run AFTER both home-manager services complete successfully
       after = [
         "home-manager-${protectedUsername}.service"
         "home-manager-${username}.service"
       ];
-      requires = ["home-manager-${username}.service"];
-      wants = ["home-manager-${protectedUsername}.service"];
+
+      # Use Wants instead of Requisite to avoid blocking
+      wants = [
+        "home-manager-${protectedUsername}.service"
+        "home-manager-${username}.service"
+      ];
 
       unitConfig = {
         RequiresMountsFor = [protectedHome targetHome];
@@ -320,8 +340,9 @@ in {
           "${pkgs.coreutils}/bin/sleep 0.5"
         ];
         ExecStart = "${mountScript}";
-        # Remove ExecStop - we don't want to unmount when the service stops/restarts
-        TimeoutStartSec = "30s";
+        TimeoutStartSec = "60s";
+        # Ensure service fails cleanly if something goes wrong
+        Restart = "no";
       };
 
       restartTriggers = [
@@ -331,19 +352,21 @@ in {
       ];
     };
 
-    "protected-mount-${username}-restart" = {
-      description = "Restart protected mounts after ${protectedUsername} HM activation";
-      after = ["home-manager-${protectedUsername}.service"];
-      wantedBy = ["home-manager-${protectedUsername}.service"];
+    # Cleanup service with increased timeout
+    "protected-mount-${username}-cleanup" = {
+      description = "Clean up failed protected mounts for ${username}";
 
       serviceConfig = {
         Type = "oneshot";
-        RemainAfterExit = false;
-        # Wait for both HM services to fully complete
-        ExecStartPre = "${pkgs.bash}/bin/bash -c 'for i in {1..30}; do ${pkgs.systemd}/bin/systemctl is-active home-manager-${protectedUsername}.service >/dev/null 2>&1 && ${pkgs.systemd}/bin/systemctl is-active home-manager-${username}.service >/dev/null 2>&1 && break; sleep 1; done'";
-        ExecStart = "${pkgs.systemd}/bin/systemctl restart protected-mount-${username}.service";
-        TimeoutStartSec = "60s";
+        ExecStart = "${unmountScript}";
+        TimeoutStartSec = "90s"; # Increased timeout
       };
     };
   };
+
+  # Add a system activation script to clean up before rebuild
+  system.activationScripts."protected-unmount-${username}" = lib.stringAfter ["users"] ''
+    echo "Cleaning up protected mounts before activation..."
+    ${unmountScript} || true
+  '';
 }
