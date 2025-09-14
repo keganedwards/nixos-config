@@ -27,6 +27,13 @@
     ".config/user-dirs.dirs"
   ];
 
+  # Directories that should be protected even if they contain files
+  # These are directories where we want to prevent any modifications
+  protectedDirs = [
+    ".config/fish/conf.d"
+    ".config/fish/functions"
+  ];
+
   # Build exclude arguments for fd (only for directories)
   fdExcludeArgs = lib.concatMapStringsSep " " (dir: "-E '${dir}'") excludeDirs;
 
@@ -80,6 +87,20 @@
         [[ "$rel_path" == "${file}" ]] && return 0
       '')
       excludeFiles}
+      return 1
+    }
+
+    # Check if a directory should be protected (made immutable)
+    should_protect_dir() {
+      local dir_path="$1"
+      # Extract relative path
+      local rel_dir="''${dir_path#${targetHome}/}"
+
+      ${lib.concatMapStringsSep "\n" (dir: ''
+        [[ "$rel_dir" == "${dir}" ]] && return 0
+        [[ "$rel_dir" == "${dir}/"* ]] && return 0
+      '')
+      protectedDirs}
       return 1
     }
 
@@ -212,10 +233,18 @@
       fi
     done
 
-    # Protect parent directories (but skip excluded ones)
+    # Protect parent directories
     echo "Protecting parent directories..."
     for parent in "''${parent_dirs[@]:-}"; do
       parent_path="${targetHome}/$parent"
+
+      # Check if this directory should be protected
+      if should_protect_dir "$parent_path"; then
+        chattr +i "$parent_path" 2>/dev/null && \
+          echo "  ✓ Protected (forced): $parent" || \
+          echo "  ⚠ Could not protect: $parent" >&2
+        continue
+      fi
 
       # Skip directories that should not be immutable
       if should_exclude_dir "$parent_path"; then
@@ -334,12 +363,20 @@ in {
   systemd.services = {
     "protected-mount-${username}" = {
       description = "Mount protected files for ${username}";
+      # Start as early as possible but after filesystems
       wantedBy = ["multi-user.target"];
 
-      # CRITICAL: Run AFTER both home-manager services complete successfully
+      # Run AFTER both home-manager services complete but BEFORE user sessions
       after = [
         "home-manager-${protectedUsername}.service"
         "home-manager-${username}.service"
+      ];
+
+      # Must run before display manager and user services
+      before = [
+        "display-manager.service"
+        "getty@tty1.service"
+        "user@${toString config.users.users.${username}.uid}.service"
       ];
 
       # Use Wants instead of Requisite to avoid blocking
@@ -350,6 +387,8 @@ in {
 
       unitConfig = {
         RequiresMountsFor = [protectedHome targetHome];
+        # Ensure this completes before user can login
+        DefaultDependencies = "no";
       };
 
       serviceConfig = {
@@ -380,7 +419,7 @@ in {
       serviceConfig = {
         Type = "oneshot";
         ExecStart = "${unmountScript}";
-        TimeoutStartSec = "90s"; # Increased timeout
+        TimeoutStartSec = "90s";
       };
     };
   };
