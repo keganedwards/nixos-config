@@ -97,7 +97,10 @@ in {
   programs.git = {
     enable = true;
     config = {
-      safe.directory = flakeDir;
+      safe.directory = [
+        flakeDir
+        "/home/${username}/.dotfiles/"
+      ];
     };
   };
 
