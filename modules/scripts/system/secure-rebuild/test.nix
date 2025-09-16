@@ -16,18 +16,6 @@
 
     cd "${flakeDir}"
 
-    reload_sway() {
-      if pgrep -x sway >/dev/null; then
-        runuser -u ${username} -- swaymsg reload &>/dev/null || true
-      fi
-    }
-
-    source_fish() {
-      if command -v fish >/dev/null; then
-        runuser -u ${username} -- fish -c "source ~/.config/fish/config.fish" &>/dev/null || true
-      fi
-    }
-
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "  NixOS Test Build"
     echo "  Commit: ''${TARGET_COMMIT:0:7}"
@@ -39,18 +27,37 @@
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo
 
-    # Run the build and capture its exit code immediately
+    # Run the build and capture result
     /run/current-system/sw/bin/secure-rebuild "$TARGET_COMMIT" test --ask
     BUILD_RESULT=$?
 
-    # Handle post-build actions
+    # Post-build actions only on success
     if [ $BUILD_RESULT -eq 0 ]; then
-      reload_sway
-      source_fish
-      exit 0
-    else
-      exit 1
+      echo
+      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      echo "  Post-build actions..."
+      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      # Reload sway if running
+      if pgrep -x sway >/dev/null 2>&1; then
+        echo -n "  Reloading Sway configuration... "
+        runuser -u ${username} -- swaymsg reload >/dev/null 2>&1 || true
+        echo "done"
+      fi
+
+      # Source fish config if available
+      if command -v fish >/dev/null 2>&1; then
+        echo -n "  Sourcing Fish configuration... "
+        runuser -u ${username} -- fish -c "source ~/.config/fish/config.fish" >/dev/null 2>&1 || true
+        echo "done"
+      fi
+
+      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      echo
     fi
+
+    # Explicitly exit with the build result
+    exit $BUILD_RESULT
   '';
 
   # Main script that runs WITHOUT sudo initially
@@ -133,7 +140,9 @@
       fi
 
       echo ":: Authenticating for NixOS test build..."
-      if sudo ${nixos-test-build}/bin/nixos-test-build "$TARGET_COMMIT"; then
+
+      # Run build directly and handle result
+      if exec sudo ${nixos-test-build}/bin/nixos-test-build "$TARGET_COMMIT"; then
         ${pkgs.libnotify}/bin/notify-send -u normal -a "NixOS Test" "✅ Test build successful!"
         exit 0
       else
@@ -236,59 +245,19 @@
       # Spawn diff window if possible and there were actual changes
       if [ "$TARGET_COMMIT" != "$original_head" ]; then
         if command -v ${flakeConstants.terminalName} >/dev/null && [ -n "''${WAYLAND_DISPLAY:-}" ]; then
-          # Create a named pipe for build completion signaling
-          build_signal_pipe="/tmp/nixos-build-signal-$"
-          mkfifo "$build_signal_pipe"
-
-          # Cleanup function
-          cleanup() {
-            rm -f "$build_signal_pipe" 2>/dev/null || true
-          }
-          trap cleanup EXIT
-
-          diff_script='
-            set -euo pipefail
-            cd "'"${flakeDir}"'"
-
-            original_head="'"$original_head"'"
-            TARGET_COMMIT="'"$TARGET_COMMIT"'"
-            build_signal_pipe="'"$build_signal_pipe"'"
-
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "  Git Diff Review"
-            echo "  Commit: ''${TARGET_COMMIT:0:7}"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo
-            echo "Review your changes (press q to exit diff):"
-
-            # Start the diff in background so we can monitor for build completion
-            '"${pkgs.git}"'/bin/git diff --color=always "$original_head" "$TARGET_COMMIT" | '"${pkgs.less}"'/bin/less -R &
-            LESS_PID=$!
-
-            # Start monitoring for build signal
-            (
-              # Wait for signal from main process
-              read build_status < "$build_signal_pipe"
-              # Kill less when we get the signal
-              kill $LESS_PID 2>/dev/null || true
-              wait $LESS_PID 2>/dev/null || true
-              clear
-              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              echo "  Build completed: $build_status"
-              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              sleep 2
-              exit 0
-            ) &
-            MONITOR_PID=$!
-
-            # Wait for either less to exit or monitor to signal completion
-            wait $LESS_PID 2>/dev/null || true
-            kill $MONITOR_PID 2>/dev/null || true
-            exit 0
-          '
-
+          # Simple diff viewing without complex signaling
           setsid -f ${flakeConstants.terminalBin} --app-id=nixos-diff --title="NixOS Diff Review" \
-            ${pkgs.bash}/bin/bash -lc "$diff_script" &
+            ${pkgs.bash}/bin/bash -c "
+              cd '${flakeDir}'
+              echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+              echo '  Git Diff Review'
+              echo '  Commit: ''${TARGET_COMMIT:0:7}'
+              echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+              echo
+              echo 'Review your changes (press q to exit diff):'
+              ${pkgs.git}/bin/git diff --color=always '$original_head' '$TARGET_COMMIT' | ${pkgs.less}/bin/less -R
+            " &
+
           echo ":: Diff review terminal launched."
         else
           echo ":: No graphical terminal available — showing diff here before build."
@@ -308,23 +277,28 @@
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       echo
 
-      if sudo ${nixos-test-build}/bin/nixos-test-build "$TARGET_COMMIT"; then
-        ${pkgs.libnotify}/bin/notify-send -u normal -a "NixOS Test" "✅ Test build successful!"
-        # Signal completion to diff window
-        echo "success" > "$build_signal_pipe" 2>/dev/null || true
-        exit 0
-      else
-        ${pkgs.libnotify}/bin/notify-send -u critical -a "NixOS Test" "❌ Test build failed!"
-        # Signal completion to diff window
-        echo "failed" > "$build_signal_pipe" 2>/dev/null || true
-        exit 1
-      fi
+      # Use exec to replace the current shell with sudo
+      exec sudo ${nixos-test-build}/bin/nixos-test-build "$TARGET_COMMIT"
+      # Notification will be sent by wrapper on exit
 
     else
       echo "✅ Repository is clean. No changes to test."
       echo "    Use -f or --force to rebuild anyway."
       exit 0
     fi
+  '';
+
+  # Create a simple wrapper to handle notifications after the main script exits
+  nt-wrapper = pkgs.writeShellScriptBin "nt" ''
+    #!${pkgs.bash}/bin/bash
+    ${nixos-test-wrapper}/bin/nt "$@"
+    RESULT=$?
+    if [ $RESULT -eq 0 ]; then
+      ${pkgs.libnotify}/bin/notify-send -u normal -a "NixOS Test" "✅ Test build successful!" 2>/dev/null || true
+    else
+      ${pkgs.libnotify}/bin/notify-send -u critical -a "NixOS Test" "❌ Test build failed!" 2>/dev/null || true
+    fi
+    exit $RESULT
   '';
 in {
   programs.nh = {
@@ -333,7 +307,7 @@ in {
 
   environment.systemPackages = with pkgs; [
     nixos-test-build
-    nixos-test-wrapper
+    nt-wrapper
   ];
 
   security.sudo-rs.extraRules = [
