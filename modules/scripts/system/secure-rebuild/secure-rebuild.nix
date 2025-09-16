@@ -1,4 +1,3 @@
-# /modules/system/secure-rebuild.nix
 {
   pkgs,
   username,
@@ -35,23 +34,105 @@
       fi
       shift
 
-      # SECURITY: Verify commit signature before proceeding
+      # SECURITY: Verify ALL commits from the last known-good commit to the target
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      echo "  Verifying commit signature..."
+      echo "  Performing comprehensive commit verification..."
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       cd "${flakeDir}"
 
-      # Simple signature verification using git verify-commit
-      # This relies on the allowed_signers file already configured by git.nix
-      if ! runuser -u ${username} -- ${pkgs.git}/bin/git verify-commit "$TARGET_COMMIT" 2>/dev/null; then
-        echo "❌ SECURITY ERROR: Commit $TARGET_COMMIT signature verification failed!"
-        echo "This commit is either unsigned or signed with an untrusted key."
+      # Find the last known-good commit (the one currently deployed)
+      CURRENT_COMMIT=""
+      if [ -f /run/current-system/nixos-version ]; then
+        # Try to extract commit hash from nixos-version if it contains it
+        CURRENT_COMMIT=$(grep -oP '[a-f0-9]{40}' /run/current-system/nixos-version | head -1 || echo "")
+      fi
+
+      # If we can't determine the current commit, find the last verified commit
+      if [ -z "$CURRENT_COMMIT" ]; then
+        echo "⚠ Cannot determine current system commit, finding last verified commit..."
+
+        # Get all commits and find the most recent verified one
+        COMMITS=$(runuser -u ${username} -- ${pkgs.git}/bin/git rev-list HEAD --reverse)
+        LAST_VERIFIED=""
+
+        for commit in $COMMITS; do
+          if runuser -u ${username} -- ${pkgs.git}/bin/git verify-commit "$commit" 2>/dev/null; then
+            LAST_VERIFIED="$commit"
+          else
+            break  # Stop at first unverified commit
+          fi
+        done
+
+        if [ -z "$LAST_VERIFIED" ]; then
+          echo "❌ SECURITY ERROR: No verified commits found in history!"
+          exit 1
+        fi
+
+        CURRENT_COMMIT="$LAST_VERIFIED"
+        echo "  Using last verified commit as baseline: ''${CURRENT_COMMIT:0:7}"
+      else
+        echo "  Current system commit: ''${CURRENT_COMMIT:0:7}"
+      fi
+
+      # Get all commits between current and target (inclusive of target)
+      echo ""
+      echo "  Verifying all commits from ''${CURRENT_COMMIT:0:7} to ''${TARGET_COMMIT:0:7}..."
+      echo ""
+
+      # Get list of commits to verify (from oldest to newest)
+      COMMITS_TO_VERIFY=$(runuser -u ${username} -- ${pkgs.git}/bin/git rev-list --reverse "$CURRENT_COMMIT..$TARGET_COMMIT")
+
+      # Add the target commit itself if it's not already included
+      if ! echo "$COMMITS_TO_VERIFY" | grep -q "$TARGET_COMMIT"; then
+        COMMITS_TO_VERIFY=$(echo -e "''${COMMITS_TO_VERIFY}\n$TARGET_COMMIT" | grep -v '^$')
+      fi
+
+      # Verify each commit in the range
+      VERIFIED_COUNT=0
+      FAILED_COMMITS=()
+
+      for commit in $COMMITS_TO_VERIFY; do
+        COMMIT_SHORT="''${commit:0:7}"
+        COMMIT_SUBJECT=$(runuser -u ${username} -- ${pkgs.git}/bin/git log --format=%s -n 1 "$commit")
+        COMMIT_AUTHOR=$(runuser -u ${username} -- ${pkgs.git}/bin/git log --format="%an <%ae>" -n 1 "$commit")
+
+        echo -n "  Checking $COMMIT_SHORT: $COMMIT_SUBJECT (by $COMMIT_AUTHOR)... "
+
+        if runuser -u ${username} -- ${pkgs.git}/bin/git verify-commit "$commit" 2>/dev/null; then
+          echo "✅"
+          VERIFIED_COUNT=$((VERIFIED_COUNT + 1))
+        else
+          echo "❌ UNSIGNED"
+          FAILED_COMMITS+=("$commit|$COMMIT_SUBJECT|$COMMIT_AUTHOR")
+        fi
+      done
+
+      echo ""
+      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      # Check if all commits were verified
+      if [ ''${#FAILED_COMMITS[@]} -gt 0 ]; then
+        echo "❌ SECURITY ERROR: Found ''${#FAILED_COMMITS[@]} unsigned/unverified commit(s)!"
+        echo ""
+        echo "The following commits failed verification:"
+        for failed in "''${FAILED_COMMITS[@]}"; do
+          IFS='|' read -r hash subject author <<< "$failed"
+          echo "  • ''${hash:0:7}: $subject (by $author)"
+        done
+        echo ""
+        echo "This could indicate:"
+        echo "  1. Commits made without proper signing"
+        echo "  2. Commits signed with an untrusted key"
+        echo "  3. Potential tampering or unauthorized changes"
+        echo ""
+        echo "❌ BUILD ABORTED FOR SECURITY REASONS"
         exit 1
       fi
 
-      echo "✅ Commit signature verified against allowed signers"
-      echo
+      echo "✅ Successfully verified $VERIFIED_COUNT commit(s)"
+      echo "  All commits in range are properly signed and trusted"
+      echo ""
 
       # Build the flake URI without hostname
       FLAKE_URI="git+file://${flakeDir}?rev=$TARGET_COMMIT"
@@ -59,7 +140,7 @@
 
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       echo "  Secure NixOS Rebuild (using nh)"
-      echo "  Commit: ''${TARGET_COMMIT:0:7}"
+      echo "  Commit Range: ''${CURRENT_COMMIT:0:7}..''${TARGET_COMMIT:0:7}"
       echo "  Action: $ACTION"
       echo "  Host: $HOSTNAME"
       echo "  Flake: $FLAKE_URI"
@@ -101,6 +182,7 @@
       echo
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       echo "  ✅ Secure rebuild completed successfully"
+      echo "  Verified and built from commit: ''${TARGET_COMMIT:0:7}"
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     '')
   ];
