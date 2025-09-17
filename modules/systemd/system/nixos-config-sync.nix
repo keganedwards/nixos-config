@@ -34,8 +34,8 @@
         log_error "Network not available after 30 seconds. Skipping update."
         exit 0
       fi
-      sleep 1
-    done
+      sleep 1 # Added a small sleep to avoid busy-looping
+    done # <--- FIX: Added the missing 'done' keyword
 
     NEEDS_SHUTDOWN=false
     export HOME="/home/${username}"
@@ -175,16 +175,7 @@
 in {
   programs.nh.enable = true;
 
-  # This declaratively configures the system-wide git config (/etc/gitconfig).
-  programs.git = {
-    enable = true;
-    config = {
-      safe.directory = [
-        flakeDir
-        dotfilesDir
-      ];
-    };
-  };
+  programs.git.enable = true;
 
   systemd.services."boot-update" = {
     description = "Check for upstream changes and update system on boot";

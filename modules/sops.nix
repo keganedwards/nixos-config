@@ -2,10 +2,17 @@
 {
   self,
   username,
+  pkgs,
   ...
 }: let
   secretsSourceDir = "${self}/secrets";
 in {
+  # This section adds the sops package to the system's PATH
+  environment.systemPackages = [
+    pkgs.sops
+    pkgs.age
+  ];
+
   sops = {
     age.keyFile = "/root/.config/sops/age/keys.txt";
 

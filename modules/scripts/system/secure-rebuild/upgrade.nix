@@ -42,7 +42,6 @@
       turn_off_screen
 
       log_header "Proceeding with final action: $FINAL_ACTION"
-      sleep 2  # Brief pause to ensure logs are written
 
       if [ "$FINAL_ACTION" = "reboot" ]; then
         ${pkgs.systemd}/bin/systemctl reboot
@@ -342,16 +341,7 @@
   '';
 in {
   programs.nh.enable = true;
-
-  programs.git = {
-    enable = true;
-    config = {
-      safe.directory = [
-        flakeDir
-        "/home/${username}/.dotfiles/"
-      ];
-    };
-  };
+  programs.git.enable = true;
 
   systemd.services = {
     "upgrade-and-reboot" = {

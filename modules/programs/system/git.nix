@@ -67,6 +67,11 @@ in {
           gpg.ssh.allowedSignersFile = "~/.ssh/allowed_signers";
           init.defaultBranch = "main";
           core.sshCommand = "ssh";
+
+          safe.directory = [
+            "/home/${username}/nixos-config"
+            "/home/${username}/.dotfiles"
+          ];
         };
       };
 
