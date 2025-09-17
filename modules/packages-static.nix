@@ -19,7 +19,6 @@
     wl-clipboard
     libnotify
     trash-cli
-    xdg-utils
     wget
     gettext
   ]);
