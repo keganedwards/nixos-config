@@ -171,9 +171,22 @@
       cleanup_and_exit 1
     fi
 
-    # Kill user sessions
-    if command -v swaymsg &> /dev/null; then swaymsg exit || true; fi
-    if command -v flatpak &> /dev/null; then runuser -l ${username} -c "flatpak kill com.brave.Browser" || true; fi
+    # --- MODIFIED SECTION ---
+    # Run commands with a proper user environment using su
+    SU_AS_USER="${pkgs.su}/bin/su -l ${username} -c"
+
+    log_info "Closing user applications and graphical session..."
+    # Kill Brave first, BEFORE the graphical session ends. This prevents errors.
+    # The '|| true' swallows the error if Brave isn't running.
+    $SU_AS_USER "flatpak kill com.brave.Browser" || true
+
+    # Now, exit the sway session, which will terminate all other graphical apps.
+    $SU_AS_USER "swaymsg exit" || true
+
+    # Give a moment for the session to fully terminate before proceeding.
+    sleep 2
+    # --- END MODIFIED SECTION ---
+
 
     # Start flatpak operations early in parallel
     log_info "Starting Flatpak updates in background..."
@@ -189,9 +202,8 @@
       cleanup_and_exit 1
     }
 
-    # Run git commands with proper user environment using su instead of runuser
-    # su properly sets up the full user environment
-    GIT_AS_USER="${pkgs.su}/bin/su -l ${username} -c"
+    # Alias for git commands, reusing the su command defined earlier
+    GIT_AS_USER="$SU_AS_USER"
 
     log_info "Verifying repository is in a clean state..."
     if ! $GIT_AS_USER "${pkgs.git}/bin/git -C ${flakeDir} diff --quiet HEAD --"; then
@@ -258,7 +270,6 @@
       cleanup_and_exit 1
     fi
 
-    # --- MODIFIED SECTION ---
     # Maintenance tasks. Some run on every shutdown, some only on update.
     if [ "$FINAL_ACTION" = "shutdown" ]; then
       log_header "Running Maintenance Tasks"
@@ -290,7 +301,6 @@
       # For reboot or if the upgrade process failed, just wait for the background Flatpak process to finish.
       wait $FLATPAK_PID || true
     fi
-    # --- END MODIFIED SECTION ---
 
     log_success "All tasks concluded."
 
