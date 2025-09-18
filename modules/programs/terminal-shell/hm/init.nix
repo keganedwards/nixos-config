@@ -4,6 +4,11 @@
       # Suppress welcome message
       set -g fish_greeting ""
 
+      # Imperatively override RIPGREP_CONFIG_PATH to point to the correct user's home.
+      # This fixes the "Permission denied" error by forcing rg to look for its
+      # config file in the current user's home, not the protected user's.
+      set -gx RIPGREP_CONFIG_PATH ~/.config/ripgrep/ripgreprc
+
       # Load nix-your-shell if available
       if command -q nix-your-shell
         nix-your-shell fish | source
