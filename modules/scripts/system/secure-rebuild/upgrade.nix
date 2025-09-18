@@ -8,12 +8,21 @@
   ...
 }: let
   sshPassphraseFile = config.sops.secrets."ssh-key-passphrase".path;
-
-  # Store upgrade results for notification service
   upgradeResultFile = "/var/lib/upgrade-service/last-result";
-
-  # Battery threshold percentage
   batteryThreshold = 30;
+
+  killBraveScript = ''
+    # Kill Brave using flatpak
+    ${pkgs.flatpak}/bin/flatpak kill com.brave.Browser 2>/dev/null || true
+
+    # Poll to check if Brave is actually dead
+    for i in {1..20}; do
+      if ! ${pkgs.flatpak}/bin/flatpak ps --columns=application 2>/dev/null | ${pkgs.ripgrep}/bin/rg -q "com.brave.Browser"; then
+        break
+      fi
+      sleep 0.1
+    done
+  '';
 
   upgradeAndPowerOffWorker = pkgs.writeShellScript "system-upgrade-worker" ''
     #!${pkgs.bash}/bin/bash
@@ -171,22 +180,18 @@
       cleanup_and_exit 1
     fi
 
-    # --- MODIFIED SECTION ---
-    # Run commands with a proper user environment using su
+    # Kill Brave and wait for it to close
+    log_info "Killing Brave browser..."
+    ${killBraveScript}
+
+    # Exit sway session
     SU_AS_USER="${pkgs.su}/bin/su -l ${username} -c"
 
-    log_info "Closing user applications and graphical session..."
-    # Kill Brave first, BEFORE the graphical session ends. This prevents errors.
-    # The '|| true' swallows the error if Brave isn't running.
-    $SU_AS_USER "flatpak kill com.brave.Browser" || true
-
-    # Now, exit the sway session, which will terminate all other graphical apps.
+    log_info "Closing graphical session..."
     $SU_AS_USER "swaymsg exit" || true
 
-    # Give a moment for the session to fully terminate before proceeding.
+    # Give a moment for the session to fully terminate
     sleep 2
-    # --- END MODIFIED SECTION ---
-
 
     # Start flatpak operations early in parallel
     log_info "Starting Flatpak updates in background..."
@@ -376,7 +381,7 @@ in {
         StandardOutput = "tty";
         StandardError = "tty";
         TTYPath = "/dev/tty1";
-        Environment = "PATH=${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:${pkgs.nix-index}/bin:${pkgs.nix}/bin:${pkgs.curl}/bin:${pkgs.jq}/bin:${pkgs.bc}/bin:${pkgs.gnused}/bin:${pkgs.kbd}/bin:${pkgs.su}/bin:/run/current-system/sw/bin";
+        Environment = "PATH=${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:${pkgs.nix-index}/bin:${pkgs.nix}/bin:${pkgs.curl}/bin:${pkgs.jq}/bin:${pkgs.bc}/bin:${pkgs.gnused}/bin:${pkgs.kbd}/bin:${pkgs.su}/bin:${pkgs.ripgrep}/bin:/run/current-system/sw/bin";
         ExecStart = "${upgradeAndPowerOffWorker} reboot";
         User = "root";
         Group = "root";
@@ -392,7 +397,7 @@ in {
         StandardOutput = "tty";
         StandardError = "tty";
         TTYPath = "/dev/tty1";
-        Environment = "PATH=${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:${pkgs.nix-index}/bin:${pkgs.nix}/bin:${pkgs.curl}/bin:${pkgs.jq}/bin:${pkgs.bc}/bin:${pkgs.gnused}/bin:${pkgs.kbd}/bin:${pkgs.su}/bin:/run/current-system/sw/bin";
+        Environment = "PATH=${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:${pkgs.nix-index}/bin:${pkgs.nix}/bin:${pkgs.curl}/bin:${pkgs.jq}/bin:${pkgs.bc}/bin:${pkgs.gnused}/bin:${pkgs.kbd}/bin:${pkgs.su}/bin:${pkgs.ripgrep}/bin:/run/current-system/sw/bin";
         ExecStart = "${upgradeAndPowerOffWorker} shutdown";
         User = "root";
         Group = "root";
@@ -433,6 +438,13 @@ in {
       ];
     }
   ];
+
+  home-manager.users.${username} = {
+    wayland.windowManager.sway.config.keybindings = {
+      "mod4+Mod1+Shift+r" = "exec upgrade-and-reboot";
+      "mod4+Mod1+Shift+p" = "exec upgrade-and-shutdown";
+    };
+  };
 
   environment.systemPackages = [
     (pkgs.writeShellApplication {

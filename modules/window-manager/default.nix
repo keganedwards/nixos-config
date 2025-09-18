@@ -17,7 +17,6 @@
       ./hm-window-rules.nix
       ./hm-startup.nix
       ./hm-workspaces.nix
-      ./hm-logout.nix
       ./hm-lock-screen.nix
       ./clipboard-manager.nix
     ];
