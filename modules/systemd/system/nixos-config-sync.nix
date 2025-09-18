@@ -5,6 +5,9 @@
   flakeDir,
   ...
 }: let
+  # These variables are correctly used within the bootUpdateWorker script below.
+  # Some linters may incorrectly flag them as unused because they don't parse
+  # the contents of multiline strings.
   sshPassphraseFile = config.sops.secrets."ssh-key-passphrase".path;
   dotfilesDir = "/home/${username}/.dotfiles";
 
@@ -34,12 +37,13 @@
         log_error "Network not available after 30 seconds. Skipping update."
         exit 0
       fi
-      sleep 1 # Added a small sleep to avoid busy-looping
-    done # <--- FIX: Added the missing 'done' keyword
+      sleep 1
+    done
 
     NEEDS_SHUTDOWN=false
     export HOME="/home/${username}"
     export GIT_SSH_COMMAND="${pkgs.openssh}/bin/ssh -i /home/${username}/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/home/${username}/.ssh/known_hosts"
+    # CORRECT: Using ${sshPassphraseFile} for Nix to interpolate the path.
     PASSPHRASE=$(cat ${sshPassphraseFile})
 
     # ===== UPDATE SYSTEM FLAKE =====
@@ -60,14 +64,13 @@
           $GIT_CMD fetch origin; then
         log_error "Failed to fetch from upstream."
       else
-        # Check if we're behind upstream
-        LOCAL_COMMIT=$(runuser -u ${username} -- $GIT_CMD rev-parse HEAD)
-        REMOTE_COMMIT=$(runuser -u ${username} -- $GIT_CMD rev-parse origin/main)
+        # THE FIX: Check if the local branch is behind the remote.
+        COMMITS_BEHIND=$(runuser -u ${username} -- $GIT_CMD rev-list --count HEAD..origin/main)
 
-        if [ "$LOCAL_COMMIT" = "$REMOTE_COMMIT" ]; then
-          log_success "System is up to date. No changes to pull."
+        if [ "$COMMITS_BEHIND" -eq 0 ]; then
+          log_success "System is up to date or ahead of origin/main. No update needed."
         else
-          log_info "Upstream changes detected. Pulling changes..."
+          log_info "Upstream changes detected ($COMMITS_BEHIND commits behind). Pulling changes..."
           if ! runuser -u ${username} -p -- \
               ${pkgs.sshpass}/bin/sshpass -p "$PASSPHRASE" -P "passphrase" \
               $GIT_CMD pull origin main; then
@@ -82,7 +85,6 @@
             GIT_STATUS=$(runuser -u ${username} -- $GIT_CMD status --porcelain)
 
             if [ -n "$GIT_STATUS" ]; then
-              # Check that only flake.lock was modified
               EXPECTED_STATUS=" M flake.lock"
               if [ "$GIT_STATUS" = "$EXPECTED_STATUS" ]; then
                 log_success "Verified: Only flake.lock was modified. Proceeding."
@@ -119,6 +121,7 @@
     # ===== UPDATE DOTFILES =====
     log_header "Checking dotfiles repository"
 
+    # CORRECT: Using ${dotfilesDir} for Nix to interpolate the path.
     if [ -d "${dotfilesDir}" ]; then
       cd "${dotfilesDir}" || { log_error "Failed to change directory to ${dotfilesDir}"; }
       DOTFILES_CMD="${pkgs.git}/bin/git -c safe.directory=${dotfilesDir}"
@@ -135,12 +138,11 @@
           $DOTFILES_CMD fetch origin; then
         log_error "Failed to fetch dotfiles from upstream."
       else
-        # Check if we're behind upstream
-        DOTFILES_LOCAL=$(runuser -u ${username} -- $DOTFILES_CMD rev-parse HEAD)
-        DOTFILES_REMOTE=$(runuser -u ${username} -- $DOTFILES_CMD rev-parse origin/main)
+        # THE FIX: Check if dotfiles are behind remote.
+        DOTFILES_COMMITS_BEHIND=$(runuser -u ${username} -- $DOTFILES_CMD rev-list --count HEAD..origin/main)
 
-        if [ "$DOTFILES_LOCAL" = "$DOTFILES_REMOTE" ]; then
-          log_success "Dotfiles are up to date."
+        if [ "$DOTFILES_COMMITS_BEHIND" -eq 0 ]; then
+          log_success "Dotfiles are up to date or ahead of origin/main."
         else
           log_info "Dotfiles have upstream changes. Resetting to match remote..."
           runuser -u ${username} -- $DOTFILES_CMD reset --hard origin/main
@@ -159,13 +161,12 @@
       sleep 10
       ${pkgs.systemd}/bin/systemctl poweroff
     else
-      log_success "All updates complete. System is up to date."
+      log_success "All updates complete. No shutdown required."
     fi
 
     exit 0
   '';
 
-  # Script to cancel the boot update service
   cancelBootUpdate = pkgs.writeShellScriptBin "cancel-boot-update" ''
     #!${pkgs.bash}/bin/bash
     echo "Stopping boot update service..."
@@ -174,21 +175,15 @@
   '';
 in {
   programs.nh.enable = true;
-
   programs.git.enable = true;
 
   systemd.services."boot-update" = {
     description = "Check for upstream changes and update system on boot";
-    # Run after system is fully up
     wantedBy = ["multi-user.target"];
     after = ["multi-user.target" "network-online.target"];
     wants = ["network-online.target"];
-
-    # Don't restart if the service exits
     restartIfChanged = false;
-    # Don't run during system reconfigurations
     reloadIfChanged = false;
-
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = false;
@@ -196,23 +191,18 @@ in {
       ExecStart = "${bootUpdateWorker}";
       User = "root";
       Group = "root";
-      # 30 minute timeout for lengthy rebuilds
       TimeoutStartSec = "1800";
     };
-
-    # Only run once per boot
     unitConfig = {
       ConditionPathExists = "!/run/boot-update-ran";
     };
   };
 
-  # Service to mark that we've run
   systemd.services."boot-update-mark" = {
     description = "Mark that boot update has run";
     requires = ["boot-update.service"];
     after = ["boot-update.service"];
     wantedBy = ["multi-user.target"];
-
     serviceConfig = {
       Type = "oneshot";
       ExecStart = "${pkgs.coreutils}/bin/touch /run/boot-update-ran";
@@ -220,7 +210,6 @@ in {
     };
   };
 
-  # User needs sudo to cancel the boot update
   security.sudo-rs.extraRules = [
     {
       users = [username];
@@ -233,7 +222,5 @@ in {
     }
   ];
 
-  environment.systemPackages = [
-    cancelBootUpdate
-  ];
+  environment.systemPackages = [cancelBootUpdate];
 }
