@@ -22,6 +22,10 @@
     RESULT_FILE="${upgradeResultFile}"
     UPGRADE_SUCCESS=0
 
+    # These variables need to be available for the maintenance check later
+    GIT_STATUS=""
+    EXPECTED_STATUS=" M flake.lock"
+
     log_header()  { echo -e "\n\e[1;35m--- $1 ---\e[0m"; }
     log_info()    { echo -e "\e[34m[INFO]\e[0m $1"; }
     log_success() { echo -e "\e[32m[SUCCESS]\e[0m $1"; }
@@ -202,7 +206,6 @@
     $GIT_AS_USER "${pkgs.nix}/bin/nix flake update --flake ${flakeDir}"
 
     GIT_STATUS=$($GIT_AS_USER "${pkgs.git}/bin/git -C ${flakeDir} status --porcelain")
-    EXPECTED_STATUS=" M flake.lock"
 
     if [ -z "$GIT_STATUS" ]; then
       log_info "No changes detected after update. System is already up-to-date."
@@ -255,8 +258,10 @@
       cleanup_and_exit 1
     fi
 
-    # Additional maintenance for shutdown only (and only if upgrade succeeded)
-    if [ "$FINAL_ACTION" = "shutdown" ] && [ "$UPGRADE_SUCCESS" -eq 1 ]; then
+    # --- MODIFIED SECTION ---
+    # Additional maintenance for shutdown only, and only if the flake was actually updated.
+    # We check GIT_STATUS directly to confirm that flake.lock was the only file modified.
+    if [ "$FINAL_ACTION" = "shutdown" ] && [ "$GIT_STATUS" = "$EXPECTED_STATUS" ]; then
       log_header "Running Post-Update Maintenance"
 
       # Wait for flatpak operations to complete
@@ -275,9 +280,10 @@
 
       log_success "All maintenance tasks complete."
     else
-      # For reboot or if upgrade failed, just wait for flatpak to finish
+      # For reboot or if no actual update occurred, just wait for flatpak to finish
       wait $FLATPAK_PID || true
     fi
+    # --- END MODIFIED SECTION ---
 
     log_success "All tasks concluded."
 
