@@ -5,6 +5,7 @@
 }: {
   # This module contributes these packages to the global home.packages
   home.packages = lib.unique (with pkgs; [
+    python3
     tokei
     dust
     dua
