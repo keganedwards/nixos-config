@@ -259,28 +259,35 @@
     fi
 
     # --- MODIFIED SECTION ---
-    # Additional maintenance for shutdown only, and only if the flake was actually updated.
-    # We check GIT_STATUS directly to confirm that flake.lock was the only file modified.
-    if [ "$FINAL_ACTION" = "shutdown" ] && [ "$GIT_STATUS" = "$EXPECTED_STATUS" ]; then
-      log_header "Running Post-Update Maintenance"
+    # Maintenance tasks. Some run on every shutdown, some only on update.
+    if [ "$FINAL_ACTION" = "shutdown" ]; then
+      log_header "Running Maintenance Tasks"
 
-      # Wait for flatpak operations to complete
+      # 1. Flatpak updates: This will run on EVERY shutdown.
       log_info "Waiting for Flatpak updates to complete..."
       wait $FLATPAK_PID || true
       if [ -f /tmp/flatpak-update.log ]; then
         cat /tmp/flatpak-update.log
         rm -f /tmp/flatpak-update.log
       fi
+      log_success "Flatpak maintenance complete."
 
-      log_info "Cleaning system and user generations..."
-      ${pkgs.nh}/bin/nh clean all --keep 5
+      # 2. Nix maintenance: This will ONLY run if the flake was actually updated.
+      if [ "$GIT_STATUS" = "$EXPECTED_STATUS" ]; then
+        log_info "Flake was updated, running Nix-specific maintenance..."
 
-      log_info "Optimizing Nix store..."
-      ${pkgs.nix}/bin/nix store optimise
+        log_info "Cleaning system and user generations..."
+        ${pkgs.nh}/bin/nh clean all --keep 5
 
-      log_success "All maintenance tasks complete."
+        log_info "Optimizing Nix store..."
+        ${pkgs.nix}/bin/nix store optimise
+
+        log_success "Nix-specific maintenance complete."
+      else
+        log_info "Flake was not updated, skipping Nix-specific maintenance."
+      fi
     else
-      # For reboot or if no actual update occurred, just wait for flatpak to finish
+      # For reboot or if the upgrade process failed, just wait for the background Flatpak process to finish.
       wait $FLATPAK_PID || true
     fi
     # --- END MODIFIED SECTION ---
