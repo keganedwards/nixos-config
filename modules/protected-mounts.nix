@@ -424,9 +424,12 @@ in {
     };
   };
 
-  # Add a system activation script to clean up before rebuild
-  system.activationScripts."protected-unmount-${username}" = lib.stringAfter ["users"] ''
-    echo "Cleaning up protected mounts before activation..."
-    ${unmountScript} || true
-  '';
+  system.activationScripts."protected-mounts-${username}" = {
+    text = ''
+      echo "Applying protected mounts for ${username} during system activation..."
+      ${unmountScript} || true
+      ${mountScript} || true
+    '';
+    deps = ["users"];
+  };
 }
