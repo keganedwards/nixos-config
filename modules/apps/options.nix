@@ -42,34 +42,6 @@
           '';
         };
 
-        vpn = lib.mkOption {
-          type = lib.types.nullOr (lib.types.submodule {
-            options = {
-              enabled = lib.mkOption {
-                type = lib.types.bool;
-                default = false;
-                description = "Whether this app should run through VPN";
-              };
-              provider = lib.mkOption {
-                type = lib.types.str;
-                default = "protonvpn";
-                description = "VPN provider to use (e.g., protonvpn, azirevpn, mullvad)";
-              };
-              server = lib.mkOption {
-                type = lib.types.str;
-                default = "us";
-                description = "VPN server location to connect to";
-              };
-              protocol = lib.mkOption {
-                type = lib.types.enum ["openvpn" "wireguard"];
-                default = "openvpn";
-                description = "VPN protocol to use";
-              };
-            };
-          });
-          default = null;
-          description = "VPN configuration for this application";
-        };
         key = lib.mkOption {
           type = lib.types.nullOr lib.types.str;
           default = null;

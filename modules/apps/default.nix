@@ -1,4 +1,3 @@
-# modules/home-manager/apps/default.nix
 {
   lib,
   config, # The config for the current module evaluation
@@ -123,9 +122,6 @@
       if (rawSimplifiedConf ? "autostartPriority" && lib.isInt rawSimplifiedConf.autostartPriority)
       then rawSimplifiedConf.autostartPriority
       else null;
-
-    # Extract VPN config from raw simplified config
-    vpnConfig = rawSimplifiedConf.vpn or null;
   in
     lib.recursiveUpdate finalResult {
       id = finalResult.appInfo.package or primaryIdValue;
@@ -137,7 +133,6 @@
       inherit (finalResult.appInfo) appId;
       appDefHomePackages = rawSimplifiedConf.appDefHomePackages or [];
       flatpakOverride = rawSimplifiedConf.flatpakOverride or null;
-      vpn = vpnConfig; # ADD THIS LINE
     })
   simplifiedAppConfigsMap;
 

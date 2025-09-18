@@ -1,4 +1,3 @@
-# modules/home-manager/apps/helpers.nix
 {
   lib,
   pkgs,
@@ -6,7 +5,7 @@
   config, # The final Home Manager config object, passed from apps/default.nix
   ...
 }: let
-  inherit (constants) terminalBin terminalName pwaRunnerFlatpakId videoPlayerBin;
+  inherit (constants) terminalBin pwaRunnerFlatpakId;
   resolve = val:
     if lib.isFunction val
     then val config
@@ -99,9 +98,7 @@ in {
       else "exec ${lib.escapeShellArg executableToRun}" + lib.optionalString (finalCommandArgs != "") (" " + finalCommandArgs);
 
     finalLaunchCommandValue =
-      if args.vpn.enabled or false
-      then "exec launch-vpn-app ${name}"
-      else if userLaunchCommand != null
+      if userLaunchCommand != null
       then userLaunchCommand
       else defaultLaunchCommand;
 
@@ -137,9 +134,7 @@ in {
     };
     defaultLaunchCommand = "exec ${pkgs.flatpak}/bin/flatpak run ${flatpakId}" + (lib.optionalString (commandArgs != "") " ${commandArgs}");
     finalLaunchCommandValue =
-      if args.vpn.enabled or false
-      then "exec launch-vpn-app ${flatpakId}"
-      else if userLaunchCommand != null
+      if userLaunchCommand != null
       then userLaunchCommand
       else defaultLaunchCommand;
     userDesktopFileCfg = args.desktopFile or {};

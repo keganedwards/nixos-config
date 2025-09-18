@@ -1,8 +1,6 @@
 {
-  ... # Catches all standard module arguments
-}: {
   imports = [
     ./nixos-config-sync.nix
-    ./vpn-app.nix
+    ./vopono.nix
   ];
 }
