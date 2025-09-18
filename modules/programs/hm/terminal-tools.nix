@@ -1,4 +1,3 @@
-# /.dotfiles/nixos/home-manager-modules/programs/terminal-tools.nix
 {
   pkgs,
   username,
@@ -6,7 +5,6 @@
 }: let
   protectedUsername = "protect-${username}";
 in {
-  # Protected user owns all the configuration
   home-manager.users.${protectedUsername} = {
     programs = {
       direnv = {
@@ -14,18 +12,15 @@ in {
         nix-direnv.enable = true;
       };
 
-      nix-your-shell = {
-        enable = true;
-      };
+      nix-your-shell.enable = true;
 
-      zoxide = {
-        enable = true;
-      };
+      zoxide.enable = true;
 
       eza = {
         enable = true;
         git = true;
         icons = "always";
+        colors = "auto";
       };
 
       fzf = {
@@ -36,17 +31,18 @@ in {
 
       fd = {
         enable = true;
+        # These options are not related to ignoring files, so they stay.
         extraOptions = [
           "--hidden"
           "--follow"
-          "--exclude"
+        ];
+        # The ignores list is the proper place for permanent exclusions.
+        ignores = [
           ".git"
-          "--exclude"
           "node_modules"
-          "--exclude"
           ".steam"
-          "--exclude"
           ".local/share/trash"
+          ".local/share/steam"
         ];
       };
 
@@ -58,9 +54,7 @@ in {
         };
       };
 
-      nix-index = {
-        enable = true;
-      };
+      nix-index.enable = true;
 
       starship = {
         enable = true;
@@ -72,9 +66,7 @@ in {
         arguments = ["--smart-case" "--hidden" "--glob=!.git/*"];
       };
 
-      pay-respects = {
-        enable = true;
-      };
+      pay-respects.enable = true;
     };
   };
 
