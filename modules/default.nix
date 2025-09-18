@@ -18,8 +18,7 @@
     ./networking.nix
     ./nix.nix
     ./nixpkgs.nix
-    ./protected-user.nix
-    ./protected-mounts.nix
+    ./protected
     ./power-management.nix
     ./security.nix
     ./sops.nix
