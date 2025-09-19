@@ -4,10 +4,6 @@
     extraPackages = [];
   };
 
-  imports = [
-    ./greetd.nix
-  ];
-
   home-manager.users.${username} = {
     imports = [
       ./hm-environment.nix

@@ -15,6 +15,7 @@
     ./fonts.nix
     ./hardware.nix
     ./i18n.nix
+    ./login-manager.nix
     ./networking.nix
     ./nix.nix
     ./nixpkgs.nix
