@@ -22,13 +22,11 @@
     enable = true;
     package = null;
     wrapperFeatures.gtk = true;
-    config = {
-      bars = [];
-      output."*".bg = "${config.home.homeDirectory}/.local/share/wallpapers/Bing/desktop.jpg fill";
-    };
+    configjbars = [];
+
     extraConfig = ''
       default_border none
-      include ./base.conf
+      output * bg "${config.home.homeDirectory}/.local/share/wallpapers/Bing/desktop.jpg" fill
     '';
   };
 
