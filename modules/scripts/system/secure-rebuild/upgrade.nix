@@ -11,19 +11,6 @@
   upgradeResultFile = "/var/lib/upgrade-service/last-result";
   batteryThreshold = 30;
 
-  killBraveScript = ''
-    # Kill Brave using flatpak
-    ${pkgs.flatpak}/bin/flatpak kill com.brave.Browser 2>/dev/null || true
-
-    # Poll to check if Brave is actually dead
-    for i in {1..20}; do
-      if ! ${pkgs.flatpak}/bin/flatpak ps --columns=application 2>/dev/null | ${pkgs.ripgrep}/bin/rg -q "com.brave.Browser"; then
-        break
-      fi
-      sleep 0.1
-    done
-  '';
-
   upgradeAndPowerOffWorker = pkgs.writeShellScript "system-upgrade-worker" ''
     #!${pkgs.bash}/bin/bash
     set -euo pipefail
@@ -134,9 +121,15 @@
 
       while [ $WAITED -lt $MAX_WAIT ]; do
         # Query Syncthing API for sync status
+        API_KEY=$(${pkgs.gnused}/bin/sed -n 's/.*<apikey>\(.*\)<\/apikey>.*/\1/p' /home/${username}/.config/syncthing/config.xml 2>/dev/null || echo "")
+
+        if [ -z "$API_KEY" ]; then
+          log_info "Unable to read Syncthing API key - proceeding anyway"
+          break
+        fi
+
         SYNC_STATUS=$(${pkgs.curl}/bin/curl -s http://localhost:8384/rest/db/completion \
-          -H "X-API-Key: $(cat /home/${username}/.config/syncthing/config.xml | \
-          ${pkgs.gnused}/bin/sed -n 's/.*<apikey>\(.*\)<\/apikey>.*/\1/p')" 2>/dev/null || echo "")
+          -H "X-API-Key: $API_KEY" 2>/dev/null || echo "")
 
         if [ -z "$SYNC_STATUS" ]; then
           log_info "Unable to query Syncthing status - proceeding anyway"
@@ -180,49 +173,51 @@
       cleanup_and_exit 1
     fi
 
-    # Kill Brave and wait for it to close
+    # Kill Brave BEFORE exiting sway - run as user
     log_info "Killing Brave browser..."
-    ${killBraveScript}
+    ${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.flatpak}/bin/flatpak kill com.brave.Browser 2>/dev/null || true
 
-    # Exit sway session
-    SU_AS_USER="${pkgs.su}/bin/su -l ${username} -c"
+    # Wait for Brave to fully close
+    for i in {1..20}; do
+      if ! ${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.flatpak}/bin/flatpak ps --columns=application 2>/dev/null | ${pkgs.ripgrep}/bin/rg -q "com.brave.Browser"; then
+        log_success "Brave closed successfully"
+        break
+      fi
+      sleep 0.1
+    done
 
+    # Exit sway session - don't wait for it
     log_info "Closing graphical session..."
-    $SU_AS_USER "swaymsg exit" || true
-
-    # Give a moment for the session to fully terminate
-    sleep 2
+    ${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.sway}/bin/swaymsg exit 2>/dev/null || true
 
     # Start flatpak operations early in parallel
     log_info "Starting Flatpak updates in background..."
     (
-      runuser -l ${username} -c "flatpak update -y" 2>&1 | tee /tmp/flatpak-update.log || true
-      runuser -l ${username} -c "flatpak uninstall --unused -y" 2>&1 | tee -a /tmp/flatpak-update.log || true
+      ${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.flatpak}/bin/flatpak update -y 2>&1 | tee /tmp/flatpak-update.log || true
+      ${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.flatpak}/bin/flatpak uninstall --unused -y 2>&1 | tee -a /tmp/flatpak-update.log || true
     ) &
     FLATPAK_PID=$!
 
-    cd "${flakeDir}" || {
+    cd ${flakeDir} || {
       log_error "Failed to change directory to ${flakeDir}"
       write_result "error:cd_failed"
       cleanup_and_exit 1
     }
 
-    # Alias for git commands, reusing the su command defined earlier
-    GIT_AS_USER="$SU_AS_USER"
-
     log_info "Verifying repository is in a clean state..."
-    if ! $GIT_AS_USER "${pkgs.git}/bin/git -C ${flakeDir} diff --quiet HEAD --"; then
+    # Run git commands as the repo owner with explicit safe directory
+    if ! ${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.git}/bin/git -c safe.directory=${flakeDir} -C ${flakeDir} diff --quiet HEAD --; then
       log_error "Git repository is dirty. Aborting upgrade."
       write_result "error:dirty_repo"
-      wait $FLATPAK_PID || true  # Still wait for flatpak to finish
+      wait $FLATPAK_PID || true
       cleanup_and_exit 1
     fi
     log_success "Repository is clean."
 
     log_info "Updating flake inputs..."
-    $GIT_AS_USER "${pkgs.nix}/bin/nix flake update --flake ${flakeDir}"
+    ${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.nix}/bin/nix flake update --flake ${flakeDir}
 
-    GIT_STATUS=$($GIT_AS_USER "${pkgs.git}/bin/git -C ${flakeDir} status --porcelain")
+    GIT_STATUS=$(${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.git}/bin/git -c safe.directory=${flakeDir} -C ${flakeDir} status --porcelain)
 
     if [ -z "$GIT_STATUS" ]; then
       log_info "No changes detected after update. System is already up-to-date."
@@ -231,12 +226,12 @@
     elif [ "$GIT_STATUS" = "$EXPECTED_STATUS" ]; then
       log_success "Verified: Only flake.lock was modified. Proceeding."
 
-      $GIT_AS_USER "${pkgs.git}/bin/git -C ${flakeDir} add flake.lock"
+      ${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.git}/bin/git -c safe.directory=${flakeDir} -C ${flakeDir} add flake.lock
       PASSPHRASE=$(cat ${sshPassphraseFile})
 
       log_info "Committing flake.lock..."
       # Create the commit with proper environment
-      $GIT_AS_USER "
+      ${pkgs.sudo}/bin/sudo -u ${username} bash -c "
         export GIT_AUTHOR_NAME='${fullName}'
         export GIT_AUTHOR_EMAIL='${email}'
         export GIT_COMMITTER_NAME='${fullName}'
@@ -244,14 +239,14 @@
         export GIT_SSH_COMMAND='${pkgs.openssh}/bin/ssh -o BatchMode=yes -o StrictHostKeyChecking=no'
         cd ${flakeDir}
         echo '$PASSPHRASE' | ${pkgs.sshpass}/bin/sshpass -p '$PASSPHRASE' -P 'passphrase' \
-          ${pkgs.git}/bin/git commit -m 'flake: update inputs'
+          ${pkgs.git}/bin/git -c safe.directory=${flakeDir} commit -m 'flake: update inputs'
       "
 
-      LATEST_HASH=$($GIT_AS_USER "${pkgs.git}/bin/git -C ${flakeDir} rev-parse HEAD")
+      LATEST_HASH=$(${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.git}/bin/git -c safe.directory=${flakeDir} -C ${flakeDir} rev-parse HEAD)
       log_info "New commit created: ''${LATEST_HASH:0:7}"
 
       # Verify the commit author
-      COMMIT_AUTHOR=$($GIT_AS_USER "${pkgs.git}/bin/git -C ${flakeDir} log -1 --format='%an <%ae>'")
+      COMMIT_AUTHOR=$(${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.git}/bin/git -c safe.directory=${flakeDir} -C ${flakeDir} log -1 --format='%an <%ae>')
       log_info "Commit author: $COMMIT_AUTHOR"
 
       log_success "Commit signature will be verified by secure-rebuild."
@@ -275,11 +270,10 @@
       cleanup_and_exit 1
     fi
 
-    # Maintenance tasks. Some run on every shutdown, some only on update.
+    # Maintenance tasks
     if [ "$FINAL_ACTION" = "shutdown" ]; then
       log_header "Running Maintenance Tasks"
 
-      # 1. Flatpak updates: This will run on EVERY shutdown.
       log_info "Waiting for Flatpak updates to complete..."
       wait $FLATPAK_PID || true
       if [ -f /tmp/flatpak-update.log ]; then
@@ -288,7 +282,6 @@
       fi
       log_success "Flatpak maintenance complete."
 
-      # 2. Nix maintenance: This will ONLY run if the flake was actually updated.
       if [ "$GIT_STATUS" = "$EXPECTED_STATUS" ]; then
         log_info "Flake was updated, running Nix-specific maintenance..."
 
@@ -303,13 +296,11 @@
         log_info "Flake was not updated, skipping Nix-specific maintenance."
       fi
     else
-      # For reboot or if the upgrade process failed, just wait for the background Flatpak process to finish.
       wait $FLATPAK_PID || true
     fi
 
     log_success "All tasks concluded."
 
-    # Perform the final action (shutdown/reboot)
     cleanup_and_exit 0
   '';
 
@@ -323,10 +314,20 @@
     fi
 
     RESULT=$(cat "$RESULT_FILE")
-    rm -f "$RESULT_FILE"
 
-    # Wait for graphical session
-    sleep 5
+    # Wait for graphical environment to be ready
+    for i in {1..30}; do
+      if [ -n "$WAYLAND_DISPLAY" ] || [ -n "$DISPLAY" ]; then
+        break
+      fi
+      sleep 1
+    done
+
+    # Verify we have a display
+    if [ -z "$WAYLAND_DISPLAY" ] && [ -z "$DISPLAY" ]; then
+      echo "No graphical environment detected, skipping notification"
+      exit 0
+    fi
 
     case "$RESULT" in
       success:updated)
@@ -366,62 +367,67 @@
           "An error occurred during system upgrade. Check logs for details."
         ;;
     esac
+
+    # Only remove result file after successful notification
+    rm -f "$RESULT_FILE"
   '';
 in {
-  programs.nh.enable = true;
-  programs.git.enable = true;
+  programs = {
+    nh.enable = true;
+    git.enable = true;
+  };
 
-  systemd.services = {
-    "upgrade-and-reboot" = {
-      description = "Perform a system upgrade and then reboot";
-      conflicts = ["display-manager.service"];
-      serviceConfig = {
-        Type = "oneshot";
-        StandardInput = "tty";
-        StandardOutput = "tty";
-        StandardError = "tty";
-        TTYPath = "/dev/tty1";
-        Environment = "PATH=${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:${pkgs.nix-index}/bin:${pkgs.nix}/bin:${pkgs.curl}/bin:${pkgs.jq}/bin:${pkgs.bc}/bin:${pkgs.gnused}/bin:${pkgs.kbd}/bin:${pkgs.su}/bin:${pkgs.ripgrep}/bin:/run/current-system/sw/bin";
-        ExecStart = "${upgradeAndPowerOffWorker} reboot";
-        User = "root";
-        Group = "root";
+  systemd = {
+    services = {
+      "upgrade-and-reboot" = {
+        description = "Perform a system upgrade and then reboot";
+        conflicts = ["display-manager.service"];
+        serviceConfig = {
+          Type = "oneshot";
+          StandardInput = "tty";
+          StandardOutput = "tty";
+          StandardError = "tty";
+          TTYPath = "/dev/tty1";
+          Environment = "PATH=${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:${pkgs.nix-index}/bin:${pkgs.nix}/bin:${pkgs.curl}/bin:${pkgs.jq}/bin:${pkgs.bc}/bin:${pkgs.gnused}/bin:${pkgs.kbd}/bin:${pkgs.sudo}/bin:${pkgs.ripgrep}/bin:${pkgs.procps}/bin:/run/current-system/sw/bin";
+          ExecStart = "${upgradeAndPowerOffWorker} reboot";
+          User = "root";
+          Group = "root";
+        };
+      };
+
+      "upgrade-and-shutdown" = {
+        description = "Perform a system upgrade and then shut down";
+        conflicts = ["display-manager.service"];
+        serviceConfig = {
+          Type = "oneshot";
+          StandardInput = "tty";
+          StandardOutput = "tty";
+          StandardError = "tty";
+          TTYPath = "/dev/tty1";
+          Environment = "PATH=${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:${pkgs.nix-index}/bin:${pkgs.nix}/bin:${pkgs.curl}/bin:${pkgs.jq}/bin:${pkgs.bc}/bin:${pkgs.gnused}/bin:${pkgs.kbd}/bin:${pkgs.sudo}/bin:${pkgs.ripgrep}/bin:${pkgs.procps}/bin:/run/current-system/sw/bin";
+          ExecStart = "${upgradeAndPowerOffWorker} shutdown";
+          User = "root";
+          Group = "root";
+        };
       };
     };
 
-    "upgrade-and-shutdown" = {
-      description = "Perform a system upgrade and then shut down";
-      conflicts = ["display-manager.service"];
-      serviceConfig = {
-        Type = "oneshot";
-        StandardInput = "tty";
-        StandardOutput = "tty";
-        StandardError = "tty";
-        TTYPath = "/dev/tty1";
-        Environment = "PATH=${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:${pkgs.nix-index}/bin:${pkgs.nix}/bin:${pkgs.curl}/bin:${pkgs.jq}/bin:${pkgs.bc}/bin:${pkgs.gnused}/bin:${pkgs.kbd}/bin:${pkgs.su}/bin:${pkgs.ripgrep}/bin:/run/current-system/sw/bin";
-        ExecStart = "${upgradeAndPowerOffWorker} shutdown";
-        User = "root";
-        Group = "root";
-      };
-    };
-
-    # Notification service that runs on boot
-    "upgrade-result-notifier" = {
+    # User service for notifications
+    user.services."upgrade-result-notifier" = {
       description = "Notify user of upgrade results from previous boot";
-      after = ["graphical-session.target"];
       wantedBy = ["graphical-session.target"];
+      after = ["graphical-session.target"];
       serviceConfig = {
         Type = "oneshot";
         ExecStart = "${notifyUpgradeResult}";
-        User = username;
         RemainAfterExit = false;
       };
     };
-  };
 
-  # Create state directory
-  systemd.tmpfiles.rules = [
-    "d /var/lib/upgrade-service 0755 root root -"
-  ];
+    tmpfiles.rules = [
+      "d /var/lib/upgrade-service 0755 root root -"
+    ];
+  };
 
   security.sudo-rs.extraRules = [
     {
