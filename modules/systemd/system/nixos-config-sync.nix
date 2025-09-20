@@ -5,9 +5,6 @@
   flakeDir,
   ...
 }: let
-  # These variables are correctly used within the bootUpdateWorker script below.
-  # Some linters may incorrectly flag them as unused because they don't parse
-  # the contents of multiline strings.
   sshPassphraseFile = config.sops.secrets."ssh-key-passphrase".path;
   dotfilesDir = "/home/${username}/.dotfiles";
 
@@ -21,8 +18,54 @@
     log_error()   { echo -e "\e[1;31m[ERROR]\e[0m $1"; }
     log_warning() { echo -e "\e[33m[WARNING]\e[0m $1"; }
 
-    # Write to journal and console
-    exec 1> >(${pkgs.systemd}/bin/systemd-cat -t boot-update) 2>&1
+    # CRITICAL: Verify we're actually in boot (not a service restart)
+    BOOT_ID=$(cat /proc/sys/kernel/random/boot_id)
+    MARKER_FILE="/var/lib/boot-update-tracker"
+
+    if [ -f "$MARKER_FILE" ]; then
+      LAST_BOOT_ID=$(cat "$MARKER_FILE")
+      if [ "$BOOT_ID" = "$LAST_BOOT_ID" ]; then
+        log_info "Already ran this boot session. Exiting."
+        exit 0
+      fi
+    fi
+
+    # Stop the display manager IMMEDIATELY to prevent logins
+    log_header "Stopping login manager to prevent user access during update"
+    DISPLAY_MANAGER="${config.services.xserver.displayManager.enable}"
+    DM_SERVICE=""
+
+    # Detect which display manager is running
+    if systemctl is-active --quiet sddm.service; then
+      DM_SERVICE="sddm.service"
+    elif systemctl is-active --quiet gdm.service; then
+      DM_SERVICE="gdm.service"
+    elif systemctl is-active --quiet lightdm.service; then
+      DM_SERVICE="lightdm.service"
+    fi
+
+    if [ -n "$DM_SERVICE" ]; then
+      log_info "Stopping $DM_SERVICE..."
+      systemctl stop "$DM_SERVICE"
+      log_success "Login manager stopped."
+    fi
+
+    # Switch to TTY1 for visible output
+    ${pkgs.kbd}/bin/chvt 1
+
+    # Clear screen and show prominent message
+    clear
+    cat << 'EOF'
+    ╔══════════════════════════════════════════════════════════════╗
+    ║                                                              ║
+    ║          SYSTEM UPDATE IN PROGRESS - PLEASE WAIT            ║
+    ║                                                              ║
+    ║              DO NOT POWER OFF THE SYSTEM                    ║
+    ║                                                              ║
+    ╚══════════════════════════════════════════════════════════════╝
+    EOF
+
+    NEEDS_SHUTDOWN=false
 
     log_header "Boot Update Service - Checking for upstream changes"
 
@@ -35,21 +78,21 @@
       fi
       if [ $i -eq 30 ]; then
         log_error "Network not available after 30 seconds. Skipping update."
+        # Restart display manager before exiting
+        [ -n "$DM_SERVICE" ] && systemctl start "$DM_SERVICE"
         exit 0
       fi
       sleep 1
     done
 
-    NEEDS_SHUTDOWN=false
     export HOME="/home/${username}"
     export GIT_SSH_COMMAND="${pkgs.openssh}/bin/ssh -i /home/${username}/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/home/${username}/.ssh/known_hosts"
-    # CORRECT: Using ${sshPassphraseFile} for Nix to interpolate the path.
     PASSPHRASE=$(cat ${sshPassphraseFile})
 
     # ===== UPDATE SYSTEM FLAKE =====
     log_header "Checking system configuration repository"
 
-    cd "${flakeDir}" || { log_error "Failed to change directory to ${flakeDir}"; exit 0; }
+    cd "${flakeDir}" || { log_error "Failed to change directory to ${flakeDir}"; [ -n "$DM_SERVICE" ] && systemctl start "$DM_SERVICE"; exit 0; }
     GIT_CMD="${pkgs.git}/bin/git -c safe.directory=${flakeDir}"
 
     log_info "Verifying repository is in a clean state..."
@@ -64,7 +107,6 @@
           $GIT_CMD fetch origin; then
         log_error "Failed to fetch from upstream."
       else
-        # THE FIX: Check if the local branch is behind the remote.
         COMMITS_BEHIND=$(runuser -u ${username} -- $GIT_CMD rev-list --count HEAD..origin/main)
 
         if [ "$COMMITS_BEHIND" -eq 0 ]; then
@@ -105,6 +147,7 @@
               else
                 log_error "SECURITY ABORT: Unexpected changes detected!"
                 log_error "The following files were modified: $GIT_STATUS"
+                [ -n "$DM_SERVICE" ] && systemctl start "$DM_SERVICE"
                 exit 0
               fi
             fi
@@ -121,7 +164,6 @@
     # ===== UPDATE DOTFILES =====
     log_header "Checking dotfiles repository"
 
-    # CORRECT: Using ${dotfilesDir} for Nix to interpolate the path.
     if [ -d "${dotfilesDir}" ]; then
       cd "${dotfilesDir}" || { log_error "Failed to change directory to ${dotfilesDir}"; }
       DOTFILES_CMD="${pkgs.git}/bin/git -c safe.directory=${dotfilesDir}"
@@ -138,7 +180,6 @@
           $DOTFILES_CMD fetch origin; then
         log_error "Failed to fetch dotfiles from upstream."
       else
-        # THE FIX: Check if dotfiles are behind remote.
         DOTFILES_COMMITS_BEHIND=$(runuser -u ${username} -- $DOTFILES_CMD rev-list --count HEAD..origin/main)
 
         if [ "$DOTFILES_COMMITS_BEHIND" -eq 0 ]; then
@@ -154,14 +195,19 @@
       log_warning "Dotfiles directory not found at ${dotfilesDir}"
     fi
 
+    # Mark this boot as completed
+    echo "$BOOT_ID" > "$MARKER_FILE"
+
     # ===== SHUTDOWN IF NEEDED =====
     if [ "$NEEDS_SHUTDOWN" = true ]; then
-      log_header "System updated successfully. Shutting down in 10 seconds..."
-      log_warning "Press Ctrl+C to cancel shutdown"
+      log_header "System updated successfully. Rebooting in 10 seconds..."
+      log_warning "Press Ctrl+C to cancel reboot"
       sleep 10
-      ${pkgs.systemd}/bin/systemctl poweroff
+      ${pkgs.systemd}/bin/systemctl reboot
     else
-      log_success "All updates complete. No shutdown required."
+      log_success "All updates complete. No reboot required."
+      log_info "Restarting login manager..."
+      [ -n "$DM_SERVICE" ] && systemctl start "$DM_SERVICE"
     fi
 
     exit 0
@@ -171,44 +217,57 @@
     #!${pkgs.bash}/bin/bash
     echo "Stopping boot update service..."
     sudo systemctl stop boot-update.service
-    echo "Service stopped."
+    echo "Service stopped. Restarting display manager..."
+    sudo systemctl start display-manager.service 2>/dev/null || \
+    sudo systemctl start sddm.service 2>/dev/null || \
+    sudo systemctl start gdm.service 2>/dev/null || \
+    sudo systemctl start lightdm.service 2>/dev/null
+    echo "Done."
   '';
 in {
   programs.nh.enable = true;
   programs.git.enable = true;
 
+  # Create persistent directory for boot tracking
+  systemd.tmpfiles.rules = [
+    "d /var/lib 0755 root root -"
+  ];
+
   systemd.services."boot-update" = {
     description = "Check for upstream changes and update system on boot";
     wantedBy = ["multi-user.target"];
-    after = ["multi-user.target" "network-online.target"];
+    after = ["network-online.target" "multi-user.target"];
     wants = ["network-online.target"];
+    before = ["display-manager.service"]; # Run BEFORE display manager starts
+
+    # CRITICAL: These prevent re-running on config changes
     restartIfChanged = false;
     reloadIfChanged = false;
+    stopIfChanged = false;
+
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = false;
-      Environment = "PATH=${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.nix}/bin:${pkgs.iputils}/bin:/run/current-system/sw/bin";
+      Environment = "PATH=${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.nix}/bin:${pkgs.iputils}/bin:${pkgs.kbd}/bin:/run/current-system/sw/bin";
       ExecStart = "${bootUpdateWorker}";
       User = "root";
       Group = "root";
       TimeoutStartSec = "1800";
+      StandardOutput = "journal+console"; # Show output on console AND journal
+      StandardError = "journal+console";
+      TTYPath = "/dev/tty1"; # Output to TTY1
+      TTYVTDisallocate = "no";
     };
+
     unitConfig = {
-      ConditionPathExists = "!/run/boot-update-ran";
+      # Double protection: check both boot ID and run flag
+      ConditionPathExists = "!/run/systemd/boot-update-active";
+      # Don't run if we're in rescue/emergency mode
+      ConditionPathExists = "!/run/systemd/system/rescue.service";
     };
   };
 
-  systemd.services."boot-update-mark" = {
-    description = "Mark that boot update has run";
-    requires = ["boot-update.service"];
-    after = ["boot-update.service"];
-    wantedBy = ["multi-user.target"];
-    serviceConfig = {
-      Type = "oneshot";
-      ExecStart = "${pkgs.coreutils}/bin/touch /run/boot-update-ran";
-      RemainAfterExit = true;
-    };
-  };
+  # Remove the separate marker service - we handle it internally now
 
   security.sudo-rs.extraRules = [
     {
@@ -218,9 +277,25 @@ in {
           command = "${pkgs.systemd}/bin/systemctl stop boot-update.service";
           options = ["NOPASSWD"];
         }
+        {
+          command = "${pkgs.systemd}/bin/systemctl start display-manager.service";
+          options = ["NOPASSWD"];
+        }
+        {
+          command = "${pkgs.systemd}/bin/systemctl start sddm.service";
+          options = ["NOPASSWD"];
+        }
+        {
+          command = "${pkgs.systemd}/bin/systemctl start gdm.service";
+          options = ["NOPASSWD"];
+        }
+        {
+          command = "${pkgs.systemd}/bin/systemctl start lightdm.service";
+          options = ["NOPASSWD"];
+        }
       ];
     }
   ];
 
-  environment.systemPackages = [cancelBootUpdate];
+  environment.systemPackages = [cancelBootUpdate pkgs.kbd];
 }
