@@ -32,7 +32,12 @@ in {
     # All boot-related options are now grouped under this single attribute set.
     boot = {
       loader = {
-        systemd-boot.enable = true;
+        systemd-boot.enable = false;
+        grub = {
+          enable = true;
+          efiSupport = true;
+          device = "nodev";
+        };
         efi.canTouchEfiVariables = true;
       };
 

@@ -4,8 +4,6 @@ let
   laptopRootLuksName = "luks-07a6c997-4559-4fa4-ad16-06912c5b2504";
   laptopRootLuksDevicePath = "/dev/disk/by-uuid/07a6c997-4559-4fa4-ad16-06912c5b2504";
 in {
-  boot.loader.grub.enable = false;
-
   swapDevices = [
     {
       device = "/swapfile";
