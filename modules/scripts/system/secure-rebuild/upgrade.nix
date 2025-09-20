@@ -236,11 +236,9 @@
       fi
 
       log_info "Committing flake.lock..."
-      # This is the corrected block.
-      # 1. We use `env -i` to create a clean, non-graphical environment.
-      # 2. We explicitly pass PASSPHRASE into that environment.
-      # 3. We build a PATH with all necessary binaries for the sub-command.
-      # 4. The `bash -c "..."` script then inherits these variables and works correctly.
+      # This block uses `env -i` to create a clean, non-graphical environment,
+      # preventing hangs with display managers like SDDM. The PASSPHRASE variable
+      # is explicitly passed into this sanitized environment.
       ${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.coreutils}/bin/env -i \
         "PASSPHRASE=$PASSPHRASE" \
         HOME="/home/${username}" \
@@ -461,18 +459,26 @@ in {
     }
   ];
 
-  # FIX: Declaratively tell root's git to trust the user's flake directory.
-  # This solves the "repository not owned by current user" error during the build.
   home-manager.users.root = {
+    # We reuse the main user's stateVersion to ensure consistency.
+    home.stateVersion = config.home-manager.users.${username}.home.stateVersion;
+
     programs.git = {
       enable = true;
-      config = {
-        safe.directory = flakeDir;
+      # Use `extraConfig` for arbitrary git config options.
+      # The key `safe.directory` is represented as a nested attribute set.
+      extraConfig = {
+        safe = {
+          directory = flakeDir;
+        };
       };
     };
   };
 
   home-manager.users.${username} = {
+    # This assumes your stateVersion is defined here, which is standard practice.
+    # home.stateVersion = "23.11"; # Or whatever your version is.
+
     wayland.windowManager.sway.config.keybindings = {
       "mod4+Mod1+Shift+r" = "exec upgrade-and-reboot";
       "mod4+Mod1+Shift+p" = "exec upgrade-and-shutdown";
