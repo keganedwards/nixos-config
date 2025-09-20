@@ -33,10 +33,11 @@
               acc.result
               ++ [
                 {
-                  command = "${pkgs.coreutils}/bin/sleep ${toString acc.pwaDelay} && ${current.rawCmd}";
+                  # This is the corrected line:
+                  command = "sh -c '${pkgs.coreutils}/bin/sleep ${toString acc.pwaDelay} && ${current.rawCmd}'";
                 }
               ];
-            pwaDelay = acc.pwaDelay + 0.1; # Add 100ms cumulative delay for each PWA
+            pwaDelay = acc.pwaDelay + 0.4; # Add cumulative delay for each PWA
           }
           else {
             result =
@@ -53,9 +54,9 @@
   in
     processEntries {
       result = [];
-      pwaDelay = 2.0;
+      pwaDelay = 1; # Start with a 1 second base delay
     }
-    entries; # Start with 2 second base delay
+    entries;
 
   startupCommands = addDelayToPwas sorted;
 in {
