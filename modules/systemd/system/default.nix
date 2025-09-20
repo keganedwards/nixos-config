@@ -1,6 +1,6 @@
 {
   imports = [
-    #  ./nixos-config-sync.nix
+      ./nixos-config-sync.nix
     ./vopono.nix
   ];
 }
