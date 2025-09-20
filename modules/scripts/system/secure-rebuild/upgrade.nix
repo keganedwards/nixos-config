@@ -384,10 +384,14 @@ in {
         conflicts = ["display-manager.service"];
         serviceConfig = {
           Type = "oneshot";
-          StandardInput = "tty";
-          StandardOutput = "tty";
-          StandardError = "tty";
+
+          # --- Corrected logging configuration ---
+          # Send output to both the journal for logging and the console for live viewing.
+          StandardOutput = "journal+console";
+          StandardError = "journal+console";
+          # This tells systemd which TTY to use for the "+console" part.
           TTYPath = "/dev/tty1";
+
           Environment = "PATH=${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:${pkgs.nix-index}/bin:${pkgs.nix}/bin:${pkgs.curl}/bin:${pkgs.jq}/bin:${pkgs.bc}/bin:${pkgs.gnused}/bin:${pkgs.kbd}/bin:${pkgs.sudo}/bin:${pkgs.ripgrep}/bin:${pkgs.procps}/bin:/run/current-system/sw/bin";
           ExecStart = "${upgradeAndPowerOffWorker} reboot";
           User = "root";
@@ -400,10 +404,14 @@ in {
         conflicts = ["display-manager.service"];
         serviceConfig = {
           Type = "oneshot";
-          StandardInput = "tty";
-          StandardOutput = "tty";
-          StandardError = "tty";
+
+          # --- Corrected logging configuration ---
+          # Send output to both the journal for logging and the console for live viewing.
+          StandardOutput = "journal+console";
+          StandardError = "journal+console";
+          # This tells systemd which TTY to use for the "+console" part.
           TTYPath = "/dev/tty1";
+
           Environment = "PATH=${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:${pkgs.nix-index}/bin:${pkgs.nix}/bin:${pkgs.curl}/bin:${pkgs.jq}/bin:${pkgs.bc}/bin:${pkgs.gnused}/bin:${pkgs.kbd}/bin:${pkgs.sudo}/bin:${pkgs.ripgrep}/bin:${pkgs.procps}/bin:/run/current-system/sw/bin";
           ExecStart = "${upgradeAndPowerOffWorker} shutdown";
           User = "root";
@@ -412,7 +420,7 @@ in {
       };
     };
 
-    # User service for notifications
+    # The rest of your systemd configuration remains the same
     user.services."upgrade-result-notifier" = {
       description = "Notify user of upgrade results from previous boot";
       wantedBy = ["graphical-session.target"];
@@ -428,7 +436,6 @@ in {
       "d /var/lib/upgrade-service 0755 root root -"
     ];
   };
-
   security.sudo-rs.extraRules = [
     {
       users = [username];
