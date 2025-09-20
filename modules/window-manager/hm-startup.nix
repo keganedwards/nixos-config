@@ -54,7 +54,7 @@
   in
     processEntries {
       result = [];
-      pwaDelay = 1; # Start with a 1 second base delay
+      pwaDelay = 3; # Start with a 1 second base delay
     }
     entries;
 
