@@ -227,20 +227,37 @@
       log_success "Verified: Only flake.lock was modified. Proceeding."
 
       ${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.git}/bin/git -c safe.directory=${flakeDir} -C ${flakeDir} add flake.lock
+
       PASSPHRASE=$(cat ${sshPassphraseFile})
+      if [ -z "$PASSPHRASE" ]; then
+        log_error "Failed to read SSH passphrase from sops!"
+        write_result "error:passphrase_read_failed"
+        exit 1
+      fi
 
       log_info "Committing flake.lock..."
-      # Create the commit with proper environment
-      ${pkgs.sudo}/bin/sudo -u ${username} bash -c "
-        export GIT_AUTHOR_NAME='${fullName}'
-        export GIT_AUTHOR_EMAIL='${email}'
-        export GIT_COMMITTER_NAME='${fullName}'
-        export GIT_COMMITTER_EMAIL='${email}'
-        export GIT_SSH_COMMAND='${pkgs.openssh}/bin/ssh -o BatchMode=yes -o StrictHostKeyChecking=no'
-        cd ${flakeDir}
-        echo '$PASSPHRASE' | ${pkgs.sshpass}/bin/sshpass -p '$PASSPHRASE' -P 'passphrase' \
-          ${pkgs.git}/bin/git -c safe.directory=${flakeDir} commit -m 'flake: update inputs'
-      "
+      # This is the corrected block.
+      # 1. We use `env -i` to create a clean, non-graphical environment.
+      # 2. We explicitly pass PASSPHRASE into that environment.
+      # 3. We build a PATH with all necessary binaries for the sub-command.
+      # 4. The `bash -c "..."` script then inherits these variables and works correctly.
+      ${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.coreutils}/bin/env -i \
+        "PASSPHRASE=$PASSPHRASE" \
+        HOME="/home/${username}" \
+        USER="${username}" \
+        LOGNAME="${username}" \
+        PATH="/run/current-system/sw/bin:${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin" \
+        GIT_AUTHOR_NAME='${fullName}' \
+        GIT_AUTHOR_EMAIL='${email}' \
+        GIT_COMMITTER_NAME='${fullName}' \
+        GIT_COMMITTER_EMAIL='${email}' \
+        GIT_SSH_COMMAND='${pkgs.openssh}/bin/ssh -o BatchMode=yes -o StrictHostKeyChecking=no' \
+        bash -c "
+          set -euo pipefail
+          cd ${flakeDir}
+          echo \"\$PASSPHRASE\" | sshpass -p \"\$PASSPHRASE\" -P 'passphrase' \
+            git -c safe.directory=${flakeDir} commit -m 'flake: update inputs'
+        "
 
       LATEST_HASH=$(${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.git}/bin/git -c safe.directory=${flakeDir} -C ${flakeDir} rev-parse HEAD)
       log_info "New commit created: ''${LATEST_HASH:0:7}"
@@ -252,6 +269,7 @@
       log_success "Commit signature will be verified by secure-rebuild."
 
       log_info "Building new system generation and setting it as default for next boot..."
+      # secure-rebuild is designed to run as root, which is the default user for this script.
       if /run/current-system/sw/bin/secure-rebuild "$LATEST_HASH" boot; then
         log_success "System build complete."
         write_result "success:updated"
@@ -384,15 +402,10 @@ in {
         conflicts = ["display-manager.service"];
         serviceConfig = {
           Type = "oneshot";
-
-          # --- Corrected logging configuration ---
-          # Send output to both the journal for logging and the console for live viewing.
           StandardOutput = "journal+console";
           StandardError = "journal+console";
-          # This tells systemd which TTY to use for the "+console" part.
           TTYPath = "/dev/tty1";
-
-          Environment = "PATH=${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:${pkgs.nix-index}/bin:${pkgs.nix}/bin:${pkgs.curl}/bin:${pkgs.jq}/bin:${pkgs.bc}/bin:${pkgs.gnused}/bin:${pkgs.kbd}/bin:${pkgs.sudo}/bin:${pkgs.ripgrep}/bin:${pkgs.procps}/bin:/run/current-system/sw/bin";
+          Environment = "PATH=${pkgs.coreutils}/bin:${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:${pkgs.nix-index}/bin:${pkgs.nix}/bin:${pkgs.curl}/bin:${pkgs.jq}/bin:${pkgs.bc}/bin:${pkgs.gnused}/bin:${pkgs.kbd}/bin:${pkgs.sudo}/bin:${pkgs.ripgrep}/bin:${pkgs.procps}/bin:/run/current-system/sw/bin";
           ExecStart = "${upgradeAndPowerOffWorker} reboot";
           User = "root";
           Group = "root";
@@ -404,15 +417,10 @@ in {
         conflicts = ["display-manager.service"];
         serviceConfig = {
           Type = "oneshot";
-
-          # --- Corrected logging configuration ---
-          # Send output to both the journal for logging and the console for live viewing.
           StandardOutput = "journal+console";
           StandardError = "journal+console";
-          # This tells systemd which TTY to use for the "+console" part.
           TTYPath = "/dev/tty1";
-
-          Environment = "PATH=${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:${pkgs.nix-index}/bin:${pkgs.nix}/bin:${pkgs.curl}/bin:${pkgs.jq}/bin:${pkgs.bc}/bin:${pkgs.gnused}/bin:${pkgs.kbd}/bin:${pkgs.sudo}/bin:${pkgs.ripgrep}/bin:${pkgs.procps}/bin:/run/current-system/sw/bin";
+          Environment = "PATH=${pkgs.coreutils}/bin:${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:${pkgs.nix-index}/bin:${pkgs.nix}/bin:${pkgs.curl}/bin:${pkgs.jq}/bin:${pkgs.bc}/bin:${pkgs.gnused}/bin:${pkgs.kbd}/bin:${pkgs.sudo}/bin:${pkgs.ripgrep}/bin:${pkgs.procps}/bin:/run/current-system/sw/bin";
           ExecStart = "${upgradeAndPowerOffWorker} shutdown";
           User = "root";
           Group = "root";
@@ -420,7 +428,7 @@ in {
       };
     };
 
-    # The rest of your systemd configuration remains the same
+    # User service for notifications
     user.services."upgrade-result-notifier" = {
       description = "Notify user of upgrade results from previous boot";
       wantedBy = ["graphical-session.target"];
@@ -436,6 +444,7 @@ in {
       "d /var/lib/upgrade-service 0755 root root -"
     ];
   };
+
   security.sudo-rs.extraRules = [
     {
       users = [username];
@@ -451,6 +460,17 @@ in {
       ];
     }
   ];
+
+  # FIX: Declaratively tell root's git to trust the user's flake directory.
+  # This solves the "repository not owned by current user" error during the build.
+  home-manager.users.root = {
+    programs.git = {
+      enable = true;
+      config = {
+        safe.directory = flakeDir;
+      };
+    };
+  };
 
   home-manager.users.${username} = {
     wayland.windowManager.sway.config.keybindings = {
