@@ -13,7 +13,8 @@
   # Import all system-level modules specific to this host.
   # This file was the old system/default.nix.
   imports = [
-    ./boot
+    ./boot.nix
+    ./hardware-configuration.nix
     ./hardware.nix
     ./power-management.nix
 

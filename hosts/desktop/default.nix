@@ -6,8 +6,8 @@
   # Import all system-level modules specific to this host.
   # This file was the old system/default.nix.
   imports = [
-    ./boot
-    #    ./automount.nix
+    ./hardware-configuration.nix
+    ./boot.nix
     ./steam.nix
     ./hardware.nix
   ];
