@@ -7,7 +7,7 @@
 }: let
   sshPassphraseFile = config.sops.secrets."ssh-key-passphrase".path;
   dotfilesDir = "/home/${username}/.dotfiles";
-  
+
   bootUpdateWorker = pkgs.writeShellScript "boot-update-worker" ''
     set -euo pipefail
 
@@ -31,10 +31,10 @@
     # Use systemd's boot ID for more reliable boot detection
     CURRENT_BOOT_ID=$(cat /proc/sys/kernel/random/boot_id)
     MARKER_FILE="/var/lib/boot-update/last-boot-id"
-    
+
     # Create directory if it doesn't exist
     ${pkgs.coreutils}/bin/mkdir -p /var/lib/boot-update
-    
+
     if [ -f "$MARKER_FILE" ]; then
       LAST_BOOT_ID=$(cat "$MARKER_FILE")
       if [ "$CURRENT_BOOT_ID" = "$LAST_BOOT_ID" ]; then
@@ -42,7 +42,7 @@
         exit 0
       fi
     fi
-    
+
     # Mark this boot as checked FIRST to prevent loops
     echo "$CURRENT_BOOT_ID" > "$MARKER_FILE"
 
@@ -58,7 +58,7 @@
     # Clear and switch to TTY1
     ${pkgs.util-linux}/bin/chvt 1 2>/dev/null || true
     ${pkgs.coreutils}/bin/sleep 1
-    
+
     # Output to both TTY1 and journal
     exec 1> >(${pkgs.coreutils}/bin/tee /dev/tty1 | ${pkgs.systemd}/bin/systemd-cat -t boot-update)
     exec 2>&1
@@ -94,7 +94,7 @@
     # ===== UPDATE SYSTEM FLAKE =====
     log_header "Checking system configuration repository"
 
-    cd "${flakeDir}" || { 
+    cd "${flakeDir}" || {
       log_error "Failed to change directory to ${flakeDir}"
       ${pkgs.coreutils}/bin/sleep 5
       if [ "$STOPPED_DM" = true ]; then
@@ -102,7 +102,7 @@
       fi
       exit 0
     }
-    
+
     GIT_CMD="${pkgs.git}/bin/git -c safe.directory=${flakeDir}"
 
     log_info "Verifying repository is in a clean state..."
@@ -230,45 +230,44 @@
 
     exit 0
   '';
-
 in {
   programs.nh.enable = true;
   programs.git.enable = true;
 
   systemd.services."boot-update" = {
     description = "Check for upstream changes and update system on boot";
-    
+
     # Only run after network, before display manager
-    after = [ "network-online.target" "multi-user.target" ];
-    wants = [ "network-online.target" ];
-    before = [ "display-manager.service" ];
-    
-    wantedBy = [ "multi-user.target" ];
-    
+    after = ["network-online.target" "multi-user.target"];
+    wants = ["network-online.target"];
+    before = ["display-manager.service"];
+
+    wantedBy = ["multi-user.target"];
+
     # Critical: prevent running on system changes
     restartIfChanged = false;
     reloadIfChanged = false;
     stopIfChanged = false;
-    
+
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = false;
-      
+
       User = "root";
       Group = "root";
-      
+
       # Don't use the systemd TTY features - handle it in script
       StandardOutput = "journal";
       StandardError = "journal";
-      
+
       ExecStart = "${bootUpdateWorker}";
-      
+
       TimeoutStartSec = "1800";
-      
+
       # Prevent systemd from interfering
       KillMode = "process";
     };
-    
+
     unitConfig = {
       # Additional safety: don't run in containers
       ConditionVirtualization = "!container";
@@ -291,7 +290,7 @@ in {
       sudo systemctl start boot-update.service
       echo "Done. Check: journalctl -u boot-update.service -f"
     '')
-    
+
     (pkgs.writeShellScriptBin "view-boot-update-log" ''
       #!/usr/bin/env bash
       journalctl -u boot-update.service -b 0
