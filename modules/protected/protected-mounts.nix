@@ -27,7 +27,7 @@
 
   mountScript = pkgs.writeShellScript "mount-protected" ''
     set -euo pipefail
-    export PATH="${pkgs.util-linux}/bin:${pkgs.coreutils}/bin:${pkgs.e2fsprogs}/bin:${pkgs.fd}/bin:${pkgs.findutils}/bin:${pkgs.gawk}/bin:${pkgs.gnugrep}/bin:$PATH"
+    export PATH="${pkgs.util-linux}/bin:${pkgs.coreutils}/bin:${pkgs.e2fsprogs}/bin:${pkgs.fd}/bin:${pkgs.findutils}/bin:${pkgs.gawk}/bin:${pkgs.ripgrep}/bin:$PATH"
 
     exec 200>"${lockFile}"
     if ! flock -w 10 -x 200; then
@@ -68,26 +68,52 @@
       return 1
     }
 
+    # Function to wait for unmounts to complete by polling
+    wait_for_unmounts() {
+      local max_attempts=10
+      local attempt=0
+
+      while ((attempt < max_attempts)); do
+        if ! mount | rg -F "${targetHome}/" >/dev/null 2>&1; then
+          return 0  # No mounts left, we're done
+        fi
+
+        # Wait a bit before checking again
+        sleep 0.1
+        attempt=$((attempt + 1))
+      done
+
+      # Force any remaining unmounts
+      mount | rg -F "${targetHome}/" | awk '{print $3}' | tac | while read -r mp; do
+        umount -lf "$mp" 2>/dev/null || true
+      done
+
+      return 0
+    }
+
     # Phase 1: Clean existing state
     echo "Phase 1: Cleaning existing state..."
 
-    # Remove immutable attributes (limit scope for performance)
+    # Use parallel processing for cleaning immutable attributes (faster)
     if [ -d "${targetHome}" ]; then
-      find "${targetHome}" -maxdepth 5 \( -type f -o -type d \) 2>/dev/null | while read -r item; do
-        chattr -i "$item" 2>/dev/null || true
-      done &
-      wait
-    fi
+      {
+        fd --hidden --no-ignore --type f --type d . "${targetHome}" -d 5 --exec-batch chattr -i {} 2>/dev/null \; || true
+        chattr -i "${targetHome}" 2>/dev/null || true
+      } &
+      clean_pid=$!
 
-    # Unmount all mounts (reverse order)
-    if mount | grep -F "${targetHome}/" >/dev/null 2>&1; then
-      mount | grep -F "${targetHome}/" | awk '{print $3}' | tac | while read -r mp; do
-        umount -l "$mp" 2>/dev/null || true
-      done
-    fi
+      # Start unmounting in parallel with the cleaning
+      if mount | rg -F "${targetHome}/" >/dev/null 2>&1; then
+        mount | rg -F "${targetHome}/" | awk '{print $3}' | tac | while read -r mp; do
+          umount -l "$mp" 2>/dev/null || true
+        done
+      fi
 
-    # Short sleep to ensure unmounts complete
-    sleep 0.5
+      wait $clean_pid
+
+      # Poll until all unmounts are complete
+      wait_for_unmounts
+    fi
 
     echo "  ✓ Clean slate"
 
@@ -97,6 +123,7 @@
     declare -A files_by_dir=()
     declare -A all_dirs=()
     declare -A dir_mount_counts=()
+    declare -A fully_protected_map=()
 
     if [ ! -d "$GENERATION_PATH/home-files" ]; then
       echo "No home-files directory found" >&2
@@ -105,15 +132,22 @@
 
     cd "$GENERATION_PATH/home-files"
 
-    # Collect all files and group by directory
+    # Pre-populate fully protected directories map for faster lookups
+    for pdir in ${lib.concatStringsSep " " (map (d: "\"${d}\"") fullyProtectedDirs)}; do
+      fully_protected_map["$pdir"]=1
+    done
+
+    # Use fd for faster file discovery and parallel processing where possible
     while IFS= read -r file; do
       rel_path="''${file#./}"
 
       # Skip excluded files
       is_excluded "$rel_path" && continue
 
-      # Skip files in fully protected directories (we'll handle those separately)
-      is_in_fully_protected "$rel_path" && continue
+      # Skip files in fully protected directories
+      if is_in_fully_protected "$rel_path"; then
+        continue
+      fi
 
       # Verify it's a file or symlink to file
       if [ -L "$file" ]; then
@@ -136,7 +170,7 @@
 
       # Count files per directory
       dir_mount_counts["$dir_path"]=$((''${dir_mount_counts["$dir_path"]:-0} + 1))
-    done < <(fd --type f --type l --hidden --no-ignore . . 2>/dev/null || find . -type f -o -type l)
+    done < <(fd --type f --type l --hidden --no-ignore . . 2>/dev/null)
 
     total_files=0
     for dir in "''${!dir_mount_counts[@]}"; do
@@ -148,6 +182,7 @@
     # Phase 3: Create directory structure
     echo "Phase 3: Creating directory structure..."
 
+    # Use mkdir with parent creation to optimize
     for dir in "''${!all_dirs[@]}"; do
       dir_path="${targetHome}/$dir"
       if [ ! -d "$dir_path" ]; then
@@ -155,6 +190,17 @@
         chown ${username}:users "$dir_path"
         chmod 755 "$dir_path"
       fi
+    done
+
+    # Also ensure fully protected dirs exist
+    for pdir in ${lib.concatStringsSep " " (map (d: "\"${d}\"") fullyProtectedDirs)}; do
+      dir_path="${targetHome}/$pdir"
+      if [ ! -d "$dir_path" ]; then
+        mkdir -p "$dir_path"
+        chown ${username}:users "$dir_path"
+        chmod 755 "$dir_path"
+      fi
+      all_dirs["$pdir"]=1
     done
 
     echo "  ✓ Directory structure ready"
@@ -186,8 +232,9 @@
       done
       [ "$skip" = true ] && continue
 
-      # Skip if it doesn't contain any files
-      if [[ -z "''${dir_mount_counts[$rel_dir]:-}" ]]; then
+      # Skip if it doesn't contain any files and isn't fully protected
+      if [[ -z "''${dir_mount_counts[$rel_dir]:-}" ]] && [[ -z "''${fully_protected_map[$rel_dir]:-}" ]]; then
+        # Check if any subdirectory has files
         has_subdirs_with_files=false
         for check_dir in "''${!dir_mount_counts[@]}"; do
           if [[ "$check_dir" == "$rel_dir/"* ]]; then
@@ -206,56 +253,91 @@
 
     echo "  ✓ Protected ''${#bind_mounted_dirs[@]} directories from moving"
 
-    # Phase 5: Mount individual files
+    # Phase 5: Mount individual files (optimize with batching)
     echo "Phase 5: Mounting protected files..."
 
     mount_count=0
     failed_count=0
+    batch_size=0
+    batch_limit=25  # Process files in batches for better performance
+
+    # Create a temporary fifo for parallel processing
+    fifo=$(mktemp -u)
+    mkfifo "$fifo"
+    exec 3<>"$fifo"
+    rm "$fifo"
+
+    process_file() {
+      local rel_path="$1"
+      local src="$GENERATION_PATH/home-files/$rel_path"
+      local dst="${targetHome}/$rel_path"
+
+      # Resolve source
+      if [ -L "$src" ]; then
+        local resolved=$(readlink -f "$src" 2>/dev/null || echo "$src")
+      else
+        local resolved="$src"
+      fi
+
+      [ -f "$resolved" ] || return
+
+      # Remove existing file
+      if [ -e "$dst" ]; then
+        chattr -i "$dst" 2>/dev/null || true
+        rm -f "$dst" 2>/dev/null || true
+      fi
+
+      # Create mount point
+      touch "$dst" 2>/dev/null || {
+        echo "  ⚠ Cannot create: $dst" >&2
+        return 1
+      }
+
+      chown ${username}:users "$dst"
+      chmod 644 "$dst"
+
+      # Mount file read-only
+      if mount --bind "$resolved" "$dst" 2>/dev/null && \
+         mount -o remount,ro,bind "$dst" 2>/dev/null; then
+        # Make file immutable
+        chattr +i "$dst" 2>/dev/null || true
+        return 0
+      else
+        echo "  ⚠ Failed to mount: $dst" >&2
+        rm -f "$dst" 2>/dev/null || true
+        return 1
+      fi
+    }
 
     for dir in "''${!files_by_dir[@]}"; do
       while IFS= read -r rel_path; do
         [ -z "$rel_path" ] && continue
 
-        src="$GENERATION_PATH/home-files/$rel_path"
-        dst="${targetHome}/$rel_path"
-
-        # Resolve source
-        if [ -L "$src" ]; then
-          resolved=$(readlink -f "$src" 2>/dev/null || echo "$src")
-        else
-          resolved="$src"
+        # Process in batches for better parallelization
+        if ((batch_size >= batch_limit)); then
+          wait
+          batch_size=0
         fi
 
-        [ -f "$resolved" ] || continue
-
-        # Remove existing file
-        if [ -e "$dst" ]; then
-          chattr -i "$dst" 2>/dev/null || true
-          rm -f "$dst" 2>/dev/null || true
-        fi
-
-        # Create mount point
-        touch "$dst" 2>/dev/null || {
-          echo "  ⚠ Cannot create: $dst"
-          failed_count=$((failed_count + 1))
-          continue
-        }
-
-        chown ${username}:users "$dst"
-        chmod 644 "$dst"
-
-        # Mount file read-only
-        if mount --bind "$resolved" "$dst" 2>/dev/null && \
-           mount -o remount,ro,bind "$dst" 2>/dev/null; then
-          chattr +i "$dst" 2>/dev/null || true
-          mount_count=$((mount_count + 1))
-        else
-          echo "  ⚠ Failed to mount: $dst"
-          rm -f "$dst" 2>/dev/null || true
-          failed_count=$((failed_count + 1))
-        fi
+        {
+          if process_file "$rel_path"; then
+            # Use a file descriptor to avoid race conditions in incrementing
+            echo "mounted" >&3
+          else
+            echo "failed" >&3
+          fi
+        } &
+        batch_size=$((batch_size + 1))
       done <<< "''${files_by_dir[$dir]}"
     done
+
+    # Wait for remaining processes
+    wait
+
+    # Count results from fifo
+    mount_count=$(grep -c "mounted" <&3 || echo 0)
+    failed_count=$(grep -c "failed" <&3 || echo 0)
+    exec 3>&-
 
     echo "  ✓ Mounted $mount_count files ($failed_count failed)"
 
@@ -285,14 +367,25 @@
       # Clean up existing destination
       if [ -e "$dst_dir" ]; then
         # Remove immutable flags
-        find "$dst_dir" \( -type f -o -type d \) 2>/dev/null | tac | while read -r item; do
-          chattr -i "$item" 2>/dev/null || true
-        done
+        fd --hidden --no-ignore --type f --type d . "$dst_dir" --exec-batch chattr -i {} 2>/dev/null \; || true
         chattr -i "$dst_dir" 2>/dev/null || true
 
         # Unmount if mounted
         if mountpoint -q "$dst_dir" 2>/dev/null; then
           umount -l "$dst_dir" 2>/dev/null || true
+
+          # Wait for unmount to complete
+          for i in {1..10}; do
+            if ! mountpoint -q "$dst_dir" 2>/dev/null; then
+              break
+            fi
+            sleep 0.1
+          done
+
+          # Force unmount if still mounted
+          if mountpoint -q "$dst_dir" 2>/dev/null; then
+            umount -lf "$dst_dir" 2>/dev/null || true
+          fi
         fi
 
         # Remove directory
@@ -308,7 +401,9 @@
       if mount --bind "$src_dir" "$dst_dir" 2>/dev/null; then
         # Remount as read-only
         if mount -o remount,ro,bind "$dst_dir" 2>/dev/null; then
-          echo "  ✓ Directory mounted read-only: $pdir ($(find "$dst_dir" -type f 2>/dev/null | wc -l) files)"
+          # Count files for stats
+          file_count=$(fd --type f --hidden --no-ignore . "$dst_dir" 2>/dev/null | wc -l)
+          echo "  ✓ Directory mounted read-only: $pdir ($file_count files)"
 
           # Make directory immutable to prevent unmounting
           chattr +i "$dst_dir" 2>/dev/null || true
@@ -334,8 +429,14 @@
     for pdir in ${lib.concatStringsSep " " (map (d: "\"${d}\"") fullyProtectedDirs)}; do
       dst_dir="${targetHome}/$pdir"
       if mountpoint -q "$dst_dir" 2>/dev/null; then
-        if mount | grep -F "$dst_dir" | grep -q "ro,"; then
-          echo "  ✓ $pdir is read-only and accessible"
+        if mount | rg -F "$dst_dir" | rg -q "ro,"; then
+          # Additional verification: actually try to read a file
+          file_count=$(fd --type f --hidden --no-ignore . "$dst_dir" 2>/dev/null | wc -l)
+          if [[ "$file_count" -gt 0 ]]; then
+            echo "  ✓ $pdir is read-only and accessible ($file_count files)"
+          else
+            echo "  ⚠ $pdir is mounted but may not have any readable files"
+          fi
         else
           echo "  ⚠ $pdir is mounted but may not be read-only"
         fi
@@ -349,7 +450,7 @@
 
   unmountScript = pkgs.writeShellScript "unmount-protected" ''
     set -euo pipefail
-    export PATH="${pkgs.util-linux}/bin:${pkgs.coreutils}/bin:${pkgs.e2fsprogs}/bin:${pkgs.fd}/bin:${pkgs.findutils}/bin:${pkgs.gawk}/bin:${pkgs.gnugrep}/bin:$PATH"
+    export PATH="${pkgs.util-linux}/bin:${pkgs.coreutils}/bin:${pkgs.e2fsprogs}/bin:${pkgs.fd}/bin:${pkgs.findutils}/bin:${pkgs.gawk}/bin:${pkgs.ripgrep}/bin:$PATH"
 
     exec 200>"${lockFile}"
     if ! flock -w 10 -x 200; then
@@ -360,17 +461,34 @@
 
     echo "Unmounting protected files..."
 
-    # Remove immutable attributes from target home
-    if [ -d "${targetHome}" ]; then
-      find "${targetHome}" -maxdepth 5 \( -type f -o -type d \) 2>/dev/null | while read -r item; do
-        chattr -i "$item" 2>/dev/null || true
-      done
-    fi
+    # Remove all immutable attributes with fd
+    fd --hidden --no-ignore --type f --type d . "${targetHome}" -d 5 --exec-batch chattr -i {} 2>/dev/null \; || true
+    chattr -i "${targetHome}" 2>/dev/null || true
 
-    # Unmount all mounts in reverse order
-    if mount | grep -F "${targetHome}/" >/dev/null 2>&1; then
-      mount | grep -F "${targetHome}/" | awk '{print $3}' | tac | while read -r mp; do
-        umount -l "$mp" 2>/dev/null || true
+    # Unmount all mounts (reverse order)
+    mount | rg -F "${targetHome}/" | awk '{print $3}' | tac | while read -r mp; do
+      umount -l "$mp" 2>/dev/null || true
+    done
+
+    # Wait for unmounts to complete
+    max_attempts=10
+    attempt=0
+
+    while ((attempt < max_attempts)); do
+      if ! mount | rg -F "${targetHome}/" >/dev/null 2>&1; then
+        break  # No mounts left, we're done
+      fi
+
+      # Wait a bit before checking again
+      sleep 0.1
+      attempt=$((attempt + 1))
+    done
+
+    # Force any remaining unmounts
+    if mount | rg -F "${targetHome}/" >/dev/null 2>&1; then
+      echo "Forcing remaining unmounts..."
+      mount | rg -F "${targetHome}/" | awk '{print $3}' | tac | while read -r mp; do
+        umount -lf "$mp" 2>/dev/null || true
       done
     fi
 
@@ -383,7 +501,7 @@ in {
     e2fsprogs
     findutils
     gawk
-    gnugrep
+    ripgrep
   ];
 
   systemd.tmpfiles.rules = [
