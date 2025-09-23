@@ -1,8 +1,4 @@
-# File: modules/home-manager/apps/screenshot.nix (as a Home Manager module)
-{
-  flakeConstants, # <<< NEW: Constants passed from flake
-  ...
-}: let
+{flakeConstants, ...}: let
   # Use flakeConstants instead of importing constants.nix directly
   constants = flakeConstants;
 
@@ -34,12 +30,10 @@ in {
       # extraConfig is types.lines and will be merged automatically
       extraConfig = ''
         # --- Screenshots (from screenshot.nix module) ---
-        bindsym mod4+s           exec ${screenshotCommandRegionToClipboard}
-        bindsym mod4+Shift+s     exec ${screenshotCommandRegionToFile}
+        bindsym mod4+Mod1+s   exec ${screenshotCommandRegionToClipboard}
+        # CORRECTED: Changed from Shift+s to 'p' to avoid conflict with suspend
+        bindsym mod4+Mod1+p   exec ${screenshotCommandRegionToFile}
       '';
-      # Ensure this module doesn't accidentally disable Sway if enabled elsewhere
-      # enable = config.wayland.windowManager.sway.enable or false; # This line might cause issues if not handled carefully
-      # Better to ensure enable = true is in the main config.
     };
   };
 }
