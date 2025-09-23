@@ -5,8 +5,7 @@
   ...
 }: let
   secretsSourceDir = "${self}/secrets";
-  protectedUsername = "protect-${username}";
-  protectedHome = "/var/lib/${protectedUsername}";
+  userHome = "/home/${username}";
 in {
   # This section adds the sops package to the system's PATH
   environment.systemPackages = [
@@ -27,33 +26,32 @@ in {
         mode = "0400";
       };
 
-      # The following secrets are decrypted into the protected user's home directory
-      # so they can be bind-mounted into the target user's home.
+      # The following secrets are decrypted into the user's home directory.
       "user-ssh-key" = {
         sopsFile = "${secretsSourceDir}/user-ssh-key.enc";
         format = "binary";
-        owner = protectedUsername;
-        group = "protected-users";
+        owner = "${username}";
+        group = "users";
         mode = "0600";
-        path = "${protectedHome}/.ssh/id_ed25519";
+        path = "${userHome}/.ssh/id_ed25519";
       };
 
       "protonvpn_auth" = {
         sopsFile = "${secretsSourceDir}/auth.txt.enc";
         format = "binary";
-        owner = protectedUsername;
-        group = "protected-users";
+        owner = "${username}";
+        group = "users";
         mode = "0600";
-        path = "${protectedHome}/.config/vopono/proton/openvpn/auth.txt";
+        path = "${userHome}/.config/vopono/proton/openvpn/auth.txt";
       };
 
       "protonvpn_config" = {
         sopsFile = "${secretsSourceDir}/united_states-us-free.ovpn.enc";
         format = "binary";
-        owner = protectedUsername;
-        group = "protected-users";
+        owner = "${username}";
+        group = "users";
         mode = "0640";
-        path = "${protectedHome}/.config/vopono/proton/united_states-us-free.ovpn";
+        path = "${userHome}/.config/vopono/proton/united_states-us-free.ovpn";
       };
     };
   };
