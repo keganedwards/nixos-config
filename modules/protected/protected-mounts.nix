@@ -42,11 +42,18 @@
     HM_GENERATION="${protectedHome}/.local/state/home-manager/gcroots/current-home"
     if [ ! -L "$HM_GENERATION" ]; then
       echo "No home-manager generation found for ${protectedUsername}" >&2
-      exit 1
+      echo "This may be a fresh system - skipping protected mounts" >&2
+      exit 0
     fi
 
     GENERATION_PATH=$(readlink -f "$HM_GENERATION")
     echo "Using generation: $GENERATION_PATH"
+
+    if [ ! -d "$GENERATION_PATH/home-files" ]; then
+      echo "No home-files directory found in generation" >&2
+      echo "Skipping protected mounts" >&2
+      exit 0
+    fi
 
     # Function to check exclusions
     is_excluded() {
@@ -125,11 +132,6 @@
     declare -A dir_mount_counts=()
     declare -A fully_protected_map=()
 
-    if [ ! -d "$GENERATION_PATH/home-files" ]; then
-      echo "No home-files directory found" >&2
-      exit 1
-    fi
-
     cd "$GENERATION_PATH/home-files"
 
     # Pre-populate fully protected directories map for faster lookups
@@ -137,7 +139,7 @@
       fully_protected_map["$pdir"]=1
     done
 
-    # Use fd for faster file discovery and parallel processing where possible
+    # Use fd for faster file discovery
     while IFS= read -r file; do
       rel_path="''${file#./}"
 
@@ -253,22 +255,20 @@
 
     echo "  ✓ Protected ''${#bind_mounted_dirs[@]} directories from moving"
 
-    # Phase 5: Mount individual files (optimize with batching)
+    # Phase 5: Mount individual files
     echo "Phase 5: Mounting protected files..."
+
+    # Create temp directory for status tracking
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' EXIT
 
     mount_count=0
     failed_count=0
-    batch_size=0
-    batch_limit=25  # Process files in batches for better performance
-
-    # Create a temporary fifo for parallel processing
-    fifo=$(mktemp -u)
-    mkfifo "$fifo"
-    exec 3<>"$fifo"
-    rm "$fifo"
+    total_count=0
 
     process_file() {
       local rel_path="$1"
+      local tmpdir="$2"
       local src="$GENERATION_PATH/home-files/$rel_path"
       local dst="${targetHome}/$rel_path"
 
@@ -279,7 +279,7 @@
         local resolved="$src"
       fi
 
-      [ -f "$resolved" ] || return
+      [ -f "$resolved" ] || { echo "fail" > "$tmpdir/$$"; return; }
 
       # Remove existing file
       if [ -e "$dst" ]; then
@@ -290,7 +290,8 @@
       # Create mount point
       touch "$dst" 2>/dev/null || {
         echo "  ⚠ Cannot create: $dst" >&2
-        return 1
+        echo "fail" > "$tmpdir/$$"
+        return
       }
 
       chown ${username}:users "$dst"
@@ -301,43 +302,38 @@
          mount -o remount,ro,bind "$dst" 2>/dev/null; then
         # Make file immutable
         chattr +i "$dst" 2>/dev/null || true
-        return 0
+        echo "success" > "$tmpdir/$$"
       else
         echo "  ⚠ Failed to mount: $dst" >&2
         rm -f "$dst" 2>/dev/null || true
-        return 1
+        echo "fail" > "$tmpdir/$$"
       fi
     }
 
+    export -f process_file
+    export GENERATION_PATH targetHome username tmpdir
+
+    # Process files with controlled parallelism
     for dir in "''${!files_by_dir[@]}"; do
       while IFS= read -r rel_path; do
         [ -z "$rel_path" ] && continue
 
-        # Process in batches for better parallelization
-        if ((batch_size >= batch_limit)); then
-          wait
-          batch_size=0
-        fi
+        # Wait for any completed background jobs to limit parallelism
+        while [ $(jobs -r | wc -l) -ge 10 ]; do
+          sleep 0.01
+        done
 
-        {
-          if process_file "$rel_path"; then
-            # Use a file descriptor to avoid race conditions in incrementing
-            echo "mounted" >&3
-          else
-            echo "failed" >&3
-          fi
-        } &
-        batch_size=$((batch_size + 1))
+        process_file "$rel_path" "$tmpdir" &
+        total_count=$((total_count + 1))
       done <<< "''${files_by_dir[$dir]}"
     done
 
-    # Wait for remaining processes
+    # Wait for all background jobs to complete
     wait
 
-    # Count results from fifo
-    mount_count=$(grep -c "mounted" <&3 || echo 0)
-    failed_count=$(grep -c "failed" <&3 || echo 0)
-    exec 3>&-
+    # Count results
+    mount_count=$(find "$tmpdir" -type f -exec grep -l "success" {} \; 2>/dev/null | wc -l)
+    failed_count=$(find "$tmpdir" -type f -exec grep -l "fail" {} \; 2>/dev/null | wc -l)
 
     echo "  ✓ Mounted $mount_count files ($failed_count failed)"
 
@@ -430,7 +426,6 @@
       dst_dir="${targetHome}/$pdir"
       if mountpoint -q "$dst_dir" 2>/dev/null; then
         if mount | rg -F "$dst_dir" | rg -q "ro,"; then
-          # Additional verification: actually try to read a file
           file_count=$(fd --type f --hidden --no-ignore . "$dst_dir" 2>/dev/null | wc -l)
           if [[ "$file_count" -gt 0 ]]; then
             echo "  ✓ $pdir is read-only and accessible ($file_count files)"
@@ -505,7 +500,7 @@ in {
   ];
 
   systemd.tmpfiles.rules = [
-    "d ${protectedHome} 0755 ${protectedUsername} protected-users -"
+    "d ${protectedHome} 0755 ${protectedUsername} users -"
     "f ${lockFile} 0644 root root -"
   ];
 
@@ -515,13 +510,9 @@ in {
       wantedBy = ["multi-user.target"];
 
       after = [
+        "local-fs.target"
         "home-manager-${protectedUsername}.service"
         "home-manager-${username}.service"
-      ];
-
-      before = [
-        "display-manager.service"
-        "getty@tty1.service"
       ];
 
       wants = [
@@ -529,6 +520,7 @@ in {
         "home-manager-${username}.service"
       ];
 
+      # Make these optional - don't fail if they don't exist
       unitConfig = {
         RequiresMountsFor = [protectedHome targetHome];
       };
@@ -538,7 +530,7 @@ in {
         RemainAfterExit = true;
         ExecStart = "${mountScript}";
         ExecReload = "${mountScript}";
-        TimeoutStartSec = "120s";
+        TimeoutStartSec = "180s";
         Restart = "no";
       };
 
