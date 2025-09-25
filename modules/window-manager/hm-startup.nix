@@ -37,7 +37,7 @@
                   command = "sh -c '${pkgs.coreutils}/bin/sleep ${toString acc.pwaDelay} && ${current.rawCmd}'";
                 }
               ];
-            pwaDelay = acc.pwaDelay + 0.4; # Add cumulative delay for each PWA
+            pwaDelay = acc.pwaDelay + 1; # Add cumulative delay for each PWA
           }
           else {
             result =
@@ -54,7 +54,7 @@
   in
     processEntries {
       result = [];
-      pwaDelay = 6;
+      pwaDelay = 7;
     }
     entries;
 
