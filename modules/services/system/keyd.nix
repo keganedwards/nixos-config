@@ -1,4 +1,4 @@
-{
+{pkgs, ...}: {
   services.keyd = {
     enable = true;
     keyboards.default = {
@@ -48,4 +48,5 @@
       };
     };
   };
+  environment.systemPackages = [pkgs.keyd];
 }
