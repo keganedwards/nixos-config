@@ -51,7 +51,7 @@ in {
         owner = "${username}";
         group = "users";
         mode = "0640";
-        path = "${userHome}/.config/vopono/proton/united_states-us-free.ovpn";
+        path = "${userHome}/.config/vopono/proton/openvpn/united_states-us-free.ovpn";
       };
     };
   };
