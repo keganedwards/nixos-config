@@ -20,14 +20,9 @@
     gco = "git checkout";
     gb = "git branch";
 
-    # Git with sudo
-    sga = "sudo git add";
-    sgc = "sudo git commit";
-
     # Application shortcuts
     music = "mpv --save-position-on-quit ~/Music/Instrumental";
     open = "xdg-open";
-    mpv = "flatpak run io.mpv.Mpv";
     sf = "source ~/.config/fish/config.fish";
 
     # Nix shortcuts
