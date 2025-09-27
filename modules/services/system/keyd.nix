@@ -12,10 +12,6 @@
 
         # Define bindings within keyd's default 'meta' layer.
         meta = {
-          # --- ADD THESE TWO LINES ---
-          s = "scrolllock"; # Meta + s outputs Scroll Lock
-          c = "capslock"; # Meta + c outputs Caps Lock
-
           # --- Arrow keys ---
           h = "left";
           j = "down";
