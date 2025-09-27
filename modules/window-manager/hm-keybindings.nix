@@ -22,7 +22,7 @@ in {
     "mod4+Mod1+bracketright" = "exec ${pkgs.wireplumber}/bin/wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+";
     "mod4+Mod1+bracketleft" = "exec ${pkgs.wireplumber}/bin/wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-";
     # CORRECTED: Mute moved to mod4+Mod1+0 to avoid conflict with fuzzel
-    "mod4+Mod1+0" = "exec ${pkgs.wireplumber}/bin/wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle";
+    "Mod1+f10" = "exec ${pkgs.wireplumber}/bin/wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle";
 
     # Media player control (MOVED to mod4+Mod1)
     "mod4+Mod1+space" = "exec ${pkgs.playerctl}/bin/playerctl play-pause";
@@ -32,17 +32,17 @@ in {
     # Custom script shortcuts
     "mod4+Shift+v" = "exec sway-sink-volume";
     "mod4+Shift+m" = "exec sway-mic-volume";
-    "mod4+Shift+i" = "exec sway-source-volume";
+    "Shift+insert" = "exec sway-source-volume";
     "mod4+Shift+w" = "exec sway-wifi-status";
     "mod4+Shift+b" = "exec sway-battery-status";
     "mod4+Shift+t" = "exec sway-show-time";
     "mod4+Shift+r" = "exec sway-reload-env";
 
     # Power management shortcuts (mod4+alt+shift+key)
-    "mod4+Mod1+Shift+l" = "exec sway-lock-secure";
+    "Mod1+Shift+right" = "exec sway-lock-secure";
     "mod4+Mod1+Shift+s" = "exec systemctl suspend";
-    "mod4+Mod1+Shift+h" = "exec systemctl hibernate";
-    "mod4+Mod1+Shift+e" = "exec ${swayExitWithBraveKill}";
+    "Mod1+Shift+down" = "exec systemctl hibernate";
+    "Mod1+Shift+escape" = "exec ${swayExitWithBraveKill}";
   };
 
   # Package the script so it's available

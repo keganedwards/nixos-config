@@ -35,7 +35,7 @@ in {
     # Keybinding to launch the Clipse UI
     config.keybindings = lib.mkMerge [
       {
-        "mod4+Shift+g" = "exec ${launchClipseCommand}";
+        "mod4+Shift+s" = "exec ${launchClipseCommand}";
       }
     ];
   };
