@@ -60,12 +60,5 @@
 
   startupCommands = addDelayToPwas sorted;
 in {
-  # Assign commands to Sway's startup configuration
-  wayland.windowManager.sway.config.startup =
-    startupCommands
-    ++ [
-      {
-        command = "swaymsg 'output * bg ${config.home.homeDirectory}/.local/share/wallpapers/Bing/desktop.jpg fill'";
-      }
-    ];
+  wayland.windowManager.sway.config.startup = startupCommands;
 }
