@@ -33,9 +33,37 @@
       echo "$1" > "$RESULT_FILE"
     }
 
-    # Function to perform final action
+    # Function to push to git
+    push_to_git() {
+      if [ $UPGRADE_SUCCESS -eq 1 ]; then
+        log_info "Pushing flake.lock to remote repository..."
+        PASSPHRASE=$(cat ${sshPassphraseFile})
+        if [ -z "$PASSPHRASE" ]; then
+          log_error "Failed to read SSH passphrase for git push!"
+          # Do not write an error result here, as the upgrade itself was successful
+          return
+        fi
+
+        ${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.coreutils}/bin/env -i \
+          "PASSPHRASE=$PASSPHRASE" \
+          HOME="/home/${username}" \
+          USER="${username}" \
+          LOGNAME="${username}" \
+          PATH="/run/current-system/sw/bin:${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin" \
+          GIT_SSH_COMMAND='${pkgs.openssh}/bin/ssh -o BatchMode=yes -o StrictHostKeyChecking=no' \
+          bash -c "
+            set -euo pipefail
+            cd ${flakeDir}
+            echo \"\$PASSPHRASE\" | sshpass -p \"\$PASSPHRASE\" -P 'passphrase' \
+              git -c safe.directory=${flakeDir} push
+          " && log_success "Successfully pushed to remote." || log_error "Failed to push to remote."
+      fi
+    }
+
     perform_final_action() {
-      # Wait for Syncthing before shutdown/reboot (even on error)
+      # Push to git if the upgrade was successful
+      push_to_git
+
       wait_for_syncthing
 
       # Turn off screen
@@ -50,7 +78,6 @@
       fi
     }
 
-    # Cleanup function that always runs
     cleanup_and_exit() {
       local exit_code=$1
       if [ $exit_code -ne 0 ]; then
@@ -60,7 +87,6 @@
       exit $exit_code
     }
 
-    # Battery check function
     check_battery() {
       log_info "Checking battery status..."
 
@@ -153,14 +179,11 @@
       fi
     }
 
-    # Turn off screen
     turn_off_screen() {
       log_info "Turning off display..."
 
-      # For console/TTY
       ${pkgs.kbd}/bin/setterm -blank force -powersave on > /dev/tty1 2>/dev/null || true
 
-      # Disable console blanking wakeup on activity temporarily
       echo 0 > /sys/module/kernel/parameters/consoleblank 2>/dev/null || true
     }
 
@@ -384,7 +407,6 @@
         ;;
     esac
 
-    # Only remove result file after successful notification
     rm -f "$RESULT_FILE"
   '';
 in {
@@ -426,7 +448,6 @@ in {
       };
     };
 
-    # User service for notifications
     user.services."upgrade-result-notifier" = {
       description = "Notify user of upgrade results from previous boot";
       wantedBy = ["graphical-session.target"];
@@ -460,13 +481,10 @@ in {
   ];
 
   home-manager.users.root = {
-    # We reuse the main user's stateVersion to ensure consistency.
     home.stateVersion = config.home-manager.users.${username}.home.stateVersion;
 
     programs.git = {
       enable = true;
-      # Use `extraConfig` for arbitrary git config options.
-      # The key `safe.directory` is represented as a nested attribute set.
       extraConfig = {
         safe = {
           directory = flakeDir;
@@ -476,9 +494,6 @@ in {
   };
 
   home-manager.users.${username} = {
-    # This assumes your stateVersion is defined here, which is standard practice.
-    # home.stateVersion = "23.11"; # Or whatever your version is.
-
     wayland.windowManager.sway.config.keybindings = {
       "mod4+Mod1+Shift+r" = "exec upgrade-and-reboot";
       "mod4+Mod1+Shift+p" = "exec upgrade-and-shutdown";
