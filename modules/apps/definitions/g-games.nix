@@ -1,5 +1,7 @@
 {
-  id = "gamescope";
-
-  key = "g"; # Sway keybinding hint
+  "games" = {
+    type = "externally-managed";
+    id = "gamescope";
+    key = "g";
+  };
 }

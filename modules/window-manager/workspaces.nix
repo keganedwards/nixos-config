@@ -1,17 +1,17 @@
-# home-manager-modules/sway/workspaces.nix
 {
-  config, # Full Home Manager config, includes processed config.applications and config.myConstants
+  config,
   lib,
+  username,
   ...
 }: let
-  escapeRegex = str: lib.escapeRegex str; # Helper for Sway criteria
+  escapeRegex = str: lib.escapeRegex str;
   processedApps = config.applications or {};
 
   generatedSwayConfigsPerApp =
     lib.mapAttrsToList (
       appKeyFromConfig: appConfig: let
         bindingKey = appConfig.key or appKeyFromConfig;
-        workspaceName = appConfig.swayWorkspace or bindingKey; # Assuming appConfig.swayWorkspace might exist for flexibility
+        workspaceName = appConfig.swayWorkspace or bindingKey;
         launchCmd = appConfig.launchCommand or null;
         swayAppIdCriteria = appConfig.appId or null;
 
@@ -20,7 +20,8 @@
           then {
             "Scroll_Lock+${bindingKey}" = "workspace ${workspaceName}";
             "Scroll_Lock+Shift+${bindingKey}" = "move container to workspace ${workspaceName}";
-            "Scroll_Lock+Mod1+${bindingKey}" = launchCmd;
+            # Launch app AND switch to its workspace
+            "Scroll_Lock+Mod1+${bindingKey}" = "${launchCmd}; workspace ${workspaceName}";
           }
           else {};
 
@@ -38,7 +39,7 @@
             else {}
           else {};
 
-        # Generate window rules for floating windows
+        # Only move window to workspace, don't auto-switch to it
         windowRulesForThisApp =
           if swayAppIdCriteria != null && workspaceName != null
           then let
@@ -54,13 +55,7 @@
                     app_id = "^${escapeRegex idString}$";
                   };
                 }
-                # Optional: Also switch to that workspace when the window opens
-                {
-                  command = "workspace ${workspaceName}";
-                  criteria = {
-                    app_id = "^${escapeRegex idString}$";
-                  };
-                }
+                # REMOVED: The auto-switch rule that was causing the issue
               ])
               appIdList)
           else [];
@@ -74,7 +69,6 @@
 
   allKeybindings = lib.foldl lib.recursiveUpdate {} (map (cfg: cfg.keybindings or {}) generatedSwayConfigsPerApp);
 
-  # Fix for allAssigns - merge assignment lists properly
   allAssigns = lib.foldl (
     acc: currentEntryAssignments:
       lib.foldl (
@@ -86,14 +80,15 @@
       acc (lib.attrNames currentEntryAssignments)
   ) {} (map (cfg: cfg.assignments or {}) generatedSwayConfigsPerApp);
 
-  # Collect all window rules
   allWindowRules = lib.flatten (map (cfg: cfg.windowRules or []) generatedSwayConfigsPerApp);
 in {
-  wayland.windowManager.sway.config = {
-    keybindings = allKeybindings;
-    assigns = allAssigns;
-    window.commands = allWindowRules;
-    # You could add other global Sway settings here if needed
-    # e.g., seat = "* hide_cursor when-typing enable";
+  home-manager.users.${username} = {
+    wayland.windowManager.sway.config = {
+      keybindings = lib.mkMerge [
+        allKeybindings
+      ];
+      assigns = allAssigns;
+      window.commands = allWindowRules;
+    };
   };
 }

@@ -1,5 +1,4 @@
-# /modules/system/virtualization.nix
-_: {
+{
   virtualisation = {
     podman = {
       enable = true;

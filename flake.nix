@@ -84,7 +84,7 @@
       flakeConstants = import ./flake-constants.nix {
         inherit (nixpkgs) lib;
         pkgs = nixpkgs.legacyPackages.${system};
-        inherit stateVersion email hostname;
+        inherit stateVersion hostname;
       };
     };
 
@@ -112,12 +112,9 @@
               argsBase.home-manager.nixosModules.home-manager
               argsBase.sops-nix.nixosModules.sops
               argsBase.catppuccin.nixosModules.catppuccin
-
-              # <-- ADDED
               nix-index-database.nixosModules.nix-index
-              # <-- ADDED: Enables the comma wrapper
               {programs.nix-index-database.comma.enable = true;}
-
+              nvf.nixosModules.default
               ./modules
               hostParams.path
               {home-manager.extraSpecialArgs = argsBase;}

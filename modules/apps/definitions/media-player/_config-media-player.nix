@@ -1,51 +1,41 @@
-# modules/home-manager/apps/definitions/media-player/_config-mpv.nix
 {
   config,
   pkgs,
+  username,
   ...
 }: let
-  # The absolute path to your dotfiles directory.
-  dotfilesRoot = "${config.home.homeDirectory}/.dotfiles";
+  dotfilesRoot = "/home/${username}/.dotfiles";
 in {
-  # --- Part 1: Your "Last Known Good" Configuration ---
-  # This correctly enables mpv, installs your custom package, and generates
-  # the base mpv.conf file. This block is correct and remains.
-  programs.mpv = {
-    enable = true;
-    package = pkgs.mpv-unwrapped.wrapper {
-      scripts = with pkgs.mpvScripts; [
-        mpris
-        mpv-playlistmanager
-        eisa01.smartskip
-        eisa01.smart-copy-paste-2
-        # Removed all mpv-image-viewer scripts
-      ];
-      mpv = pkgs.mpv-unwrapped.override {
-        waylandSupport = true;
+  home-manager.users.${username} = {
+    programs.mpv = {
+      enable = true;
+      package = pkgs.mpv-unwrapped.wrapper {
+        scripts = with pkgs.mpvScripts; [
+          mpris
+          mpv-playlistmanager
+          eisa01.smartskip
+          eisa01.smart-copy-paste-2
+        ];
+        mpv = pkgs.mpv-unwrapped.override {
+          waylandSupport = true;
+        };
       };
-    };
-    config = {
-      vo = "gpu";
-      hwdec = "auto-safe";
-      save-position-on-quit = true;
-    };
-    profiles = {};
-  };
-
-  # --- Part 2: The Direct Symlinking Logic ---
-  # We add this block to create the live symlinks inside the directory
-  # that `programs.mpv` manages. This is the cohabitation strategy that works.
-  home.file = {
-    # This creates a symlink at ~/.config/mpv/scripts
-    "${config.home.homeDirectory}/.config/mpv/scripts" = {
-      # It points DIRECTLY to your dotfiles, not the Nix store.
-      source = config.lib.file.mkOutOfStoreSymlink "${dotfilesRoot}/.config/mpv/scripts";
+      config = {
+        vo = "gpu";
+        hwdec = "auto-safe";
+        save-position-on-quit = true;
+      };
+      profiles = {};
     };
 
-    # This creates a symlink at ~/.config/mpv/script-opts
-    "${config.home.homeDirectory}/.config/mpv/script-opts" = {
-      # It also points DIRECTLY to your dotfiles.
-      source = config.lib.file.mkOutOfStoreSymlink "${dotfilesRoot}/.config/mpv/script-opts";
+    home.file = {
+      ".config/mpv/scripts" = {
+        source = config.home-manager.users.${username}.lib.file.mkOutOfStoreSymlink "${dotfilesRoot}/.config/mpv/scripts";
+      };
+
+      ".config/mpv/script-opts" = {
+        source = config.home-manager.users.${username}.lib.file.mkOutOfStoreSymlink "${dotfilesRoot}/.config/mpv/script-opts";
+      };
     };
   };
 }

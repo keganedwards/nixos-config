@@ -2,18 +2,25 @@
   config,
   lib,
   pkgs,
+  username,
   ...
 }: let
-  entries = lib.mapAttrsToList (
-    _appKey: appConfig:
-      if lib.isInt appConfig.autostartPriority && appConfig.launchCommand != null
-      then {
-        rawCmd = appConfig.launchCommand;
-        priority = appConfig.autostartPriority;
-        type = appConfig.type or "unknown";
-      }
-      else null
-  ) (config.applications or {});
+  # Access system-level applications
+  processedApps = config.applications or {};
+
+  entries =
+    lib.mapAttrsToList (
+      _appKey: appConfig:
+        if appConfig.autostart or false && appConfig.launchCommand != null
+        then {
+          rawCmd = appConfig.launchCommand;
+          # Use autostartPriority if defined, otherwise default to 100
+          priority = appConfig.autostartPriority or 100;
+          type = appConfig.type or "unknown";
+        }
+        else null
+    )
+    processedApps;
 
   sorted = lib.sort (a: b: a.priority < b.priority) (lib.filter (e: e != null) entries);
 
@@ -33,11 +40,10 @@
               acc.result
               ++ [
                 {
-                  # This is the corrected line:
                   command = "sh -c '${pkgs.coreutils}/bin/sleep ${toString acc.pwaDelay} && ${current.rawCmd}'";
                 }
               ];
-            pwaDelay = acc.pwaDelay + 1; # Add cumulative delay for each PWA
+            pwaDelay = acc.pwaDelay + 1;
           }
           else {
             result =
@@ -60,5 +66,7 @@
 
   startupCommands = addDelayToPwas sorted;
 in {
-  wayland.windowManager.sway.config.startup = startupCommands;
+  home-manager.users.${username} = {
+    wayland.windowManager.sway.config.startup = startupCommands;
+  };
 }

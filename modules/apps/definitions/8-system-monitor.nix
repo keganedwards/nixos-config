@@ -1,5 +1,8 @@
 {
-  type = "nix";
-  id = "resources";
-  key = "8";
+  "system-monitor" = {
+    type = "nix";
+    id = "resources";
+
+    key = "8";
+  };
 }

@@ -1,91 +1,69 @@
 {
   lib,
-  config, # The config for the current module evaluation
+  config,
   pkgs,
   inputs,
-  system,
   specialArgs ? {},
+  username,
   ...
-} @ topLevelModuleArgs: let
+}: let
   constants =
     if specialArgs ? "flakeConstants" && specialArgs.flakeConstants != null
     then specialArgs.flakeConstants
-    else throw "flakeConstants was not found or was null in specialArgs passed to the apps module!";
+    else throw "flakeConstants not found in specialArgs";
 
-  helpersModuleArgs = {
-    inherit lib pkgs inputs system specialArgs constants;
-    inherit (topLevelModuleArgs) config;
-  };
-  helpers = import ./helpers.nix helpersModuleArgs;
-
-  definitionFileContext = {
-    inherit lib pkgs inputs system specialArgs config constants helpers;
+  helpers = import ./helpers.nix {
+    inherit lib pkgs config constants;
   };
 
-  appOptionDefinitionsFromFile = import ./options.nix {inherit lib pkgs;};
+  importedDefs = import ./definitions {
+    inherit username lib pkgs config constants helpers inputs;
+  };
 
-  # This now calls your new smart importer, which discovers all app definition
-  # files and provides them as a single, merged attribute set.
-  allImportedAttrs = import ./definitions/default.nix definitionFileContext;
-
-  # --- This logic correctly separates app definitions from global configs ---
-
-  listStyleApps = allImportedAttrs.appList or [];
-  listStyleAppsAsAttrs = lib.listToAttrs (
-    lib.imap0 (index: appDef: {
-      name = "app-${toString index}-${lib.strings.sanitizeDerivationName (appDef.key or appDef.id or "unknown")}";
-      value = appDef;
-    })
-    listStyleApps
-  );
-
-  isSimplifiedAppConfigValue = value:
+  isAppDefinition = value:
     lib.isAttrs value
     && (value ? "type" || value ? "id" || value ? "launchCommand" || value ? "key");
 
-  # This filters `allImportedAttrs` to find just the app definitions.
-  keyedAppConfigsMap =
-    lib.filterAttrs (
-      name: value: let
-        isGlobalKey = lib.elem name ["programs" "services" "home" "xdg" "wayland" "fonts" "gtk" "appList"];
-      in
-        !isGlobalKey && isSimplifiedAppConfigValue value
-    )
-    allImportedAttrs;
+  appDefs = lib.filterAttrs (_name: value: isAppDefinition value) importedDefs;
+  otherConfigs = lib.filterAttrs (_name: value: !isAppDefinition value) importedDefs;
 
-  simplifiedAppConfigsMap = keyedAppConfigsMap // listStyleAppsAsAttrs;
-
-  # This extracts the global configs (like `programs.yazi`).
-  otherGlobalConfigsFromAppDefs = lib.removeAttrs allImportedAttrs (lib.attrNames simplifiedAppConfigsMap ++ ["appList"]);
-
-  # --- This logic processes the apps through the helpers ---
-
-  processedApplications = lib.mapAttrs (appKey: rawSimplifiedConf: let
-    customLaunchScriptDerivation =
-      if rawSimplifiedConf ? "launchScript"
-      then let
-        scriptInfo = rawSimplifiedConf.launchScript;
-        scriptTemplate = import scriptInfo.path;
-        finalScriptArgs = scriptInfo.args // {inherit pkgs;};
-      in
-        scriptTemplate finalScriptArgs
+  processedApplications = lib.mapAttrs (appKey: rawConf: let
+    customLaunchScript =
+      if rawConf ? "launchScript"
+      then
+        (import rawConf.launchScript.path)
+        (rawConf.launchScript.args // {inherit pkgs;})
       else null;
 
-    appType = rawSimplifiedConf.type or "externally-managed";
-    primaryIdValue =
-      rawSimplifiedConf.id or (
-        if (lib.elem appType ["externally-managed" "custom"]) && (rawSimplifiedConf ? "appId")
-        then rawSimplifiedConf.appId
-        else if (lib.elem appType ["externally-managed" "custom"]) && (rawSimplifiedConf ? "launchCommand")
-        then appKey
+    # Auto-detect type based on ID if not explicitly provided
+    autoDetectedType =
+      if rawConf ? "type" && rawConf.type != null
+      then rawConf.type
+      else let
+        idToCheck = rawConf.id or appKey;
+        periodCount = lib.length (lib.filter (c: c == ".") (lib.stringToCharacters idToCheck));
+      in
+        if periodCount >= 2
+        then "flatpak"
+        else "nix";
+
+    appType = autoDetectedType;
+
+    primaryId =
+      rawConf.id
+      or (
+        if rawConf ? "appId"
+        then rawConf.appId
         else appKey
       );
+
     helperArgs =
       {
-        id = primaryIdValue;
+        id = primaryId;
         _isExplicitlyExternal = appType == "externally-managed";
+        _wantsNixInstall = appType == "nix";
       }
-      // rawSimplifiedConf;
+      // rawConf;
 
     helperResult =
       if appType == "flatpak"
@@ -94,98 +72,117 @@
       then helpers.mkWebbrowserPwaApp helperArgs
       else if appType == "nix" || appType == "externally-managed"
       then helpers.mkApp helperArgs
-      else if appType == "custom" && (rawSimplifiedConf ? "launchCommand")
+      else if appType == "custom" && (rawConf ? "launchCommand")
       then {
         appInfo = {
-          name = primaryIdValue;
-          appId = rawSimplifiedConf.appId or primaryIdValue;
+          name = primaryId;
+          appId = rawConf.appId or primaryId;
           installMethod = "custom";
-          package = primaryIdValue;
+          package = primaryId;
           title = null;
-          isTerminalApp = rawSimplifiedConf.isTerminalApp or false;
+          isTerminalApp = rawConf.isTerminalApp or false;
         };
-        inherit (rawSimplifiedConf) launchCommand;
-        desktopFile = lib.recursiveUpdate (helpers.mkDefaultDesktopFileAttrs {
-          name = primaryIdValue;
-          package = primaryIdValue;
-        }) (rawSimplifiedConf.desktopFile or {});
-        homePackages = rawSimplifiedConf.appDefHomePackages or [];
+        inherit (rawConf) launchCommand;
+        desktopFile =
+          lib.recursiveUpdate
+          (helpers.mkDefaultDesktopFileAttrs {
+            name = primaryId;
+            package = primaryId;
+          })
+          (rawConf.desktopFile or {});
       }
-      else throw "Application '${appKey}' (type: \"${appType}\") is unhandled.";
+      else throw "Application '${appKey}' (type: ${appType}) is unhandled.";
 
     finalResult =
-      if customLaunchScriptDerivation != null
-      then lib.recursiveUpdate helperResult {launchCommand = "${customLaunchScriptDerivation}/bin/${customLaunchScriptDerivation.pname}";}
+      if customLaunchScript != null
+      then
+        lib.recursiveUpdate helperResult {
+          launchCommand = "${customLaunchScript}/bin/${customLaunchScript.pname}";
+        }
       else helperResult;
-
-    autostartPriorityValue =
-      if (rawSimplifiedConf ? "autostartPriority" && lib.isInt rawSimplifiedConf.autostartPriority)
-      then rawSimplifiedConf.autostartPriority
-      else null;
   in
     lib.recursiveUpdate finalResult {
-      id = finalResult.appInfo.package or primaryIdValue;
+      id = finalResult.appInfo.package or primaryId;
       type = appType;
-      key = rawSimplifiedConf.key or null;
-      autostart = autostartPriorityValue != null;
-      autostartPriority = autostartPriorityValue;
+      key = rawConf.key or null;
+      autostart = rawConf.autostart or false;
       inherit (finalResult) launchCommand;
       inherit (finalResult.appInfo) appId;
-      appDefHomePackages = rawSimplifiedConf.appDefHomePackages or [];
-      flatpakOverride = rawSimplifiedConf.flatpakOverride or null;
     })
-  simplifiedAppConfigsMap;
+  appDefs;
 
-  # --- This logic gathers all packages and Flatpaks ---
-
-  packagesDerivedConfig = {
+  packagesInfo = import ./packages-app-derived.nix {
+    inherit lib pkgs;
     applications = processedApplications;
-    inherit pkgs lib;
-    inherit (topLevelModuleArgs) config;
   };
-  derivedPackagesInfo = import ./packages-app-derived.nix packagesDerivedConfig;
 
-  appSpecificFlatpakOverrides = lib.foldl lib.recursiveUpdate {} (lib.mapAttrsToList (_appKey: appConfig:
-    if appConfig.type == "flatpak" && appConfig.flatpakOverride != null && appConfig.appInfo.package != null
-    then {"${appConfig.appInfo.package}" = appConfig.flatpakOverride;}
-    else {})
-  processedApplications);
+  # Import desktop entries configuration
+  desktopEntriesConfig = import ./desktop-entries.nix {
+    inherit config lib pkgs username;
+  };
+
+  # Extract environment.systemPackages from otherConfigs if present
+  otherSystemPackages = otherConfigs.environment.systemPackages or [];
+
+  # Remove environment.systemPackages from otherConfigs to avoid conflicts
+  otherConfigsWithoutSystemPackages =
+    if otherConfigs ? "environment"
+    then
+      otherConfigs
+      // {
+        environment = builtins.removeAttrs otherConfigs.environment ["systemPackages"];
+      }
+    else otherConfigs;
+
+  # Merge all system packages (including desktop utilities)
+  allSystemPackages =
+    packagesInfo.extractedNixPackages
+    ++ otherSystemPackages
+    ++ desktopEntriesConfig.environment.systemPackages;
+
+  # Extract services.flatpak.packages from otherConfigs if present
+  otherFlatpakPackages =
+    if otherConfigs ? "services" && otherConfigs.services ? "flatpak" && otherConfigs.services.flatpak ? "packages"
+    then otherConfigs.services.flatpak.packages
+    else [];
+
+  # Remove services.flatpak.packages from otherConfigs to avoid conflicts
+  otherConfigsClean =
+    if otherConfigsWithoutSystemPackages ? "services" && otherConfigsWithoutSystemPackages.services ? "flatpak"
+    then
+      otherConfigsWithoutSystemPackages
+      // {
+        services =
+          otherConfigsWithoutSystemPackages.services
+          // {
+            flatpak = builtins.removeAttrs otherConfigsWithoutSystemPackages.services.flatpak ["packages"];
+          };
+      }
+    else otherConfigsWithoutSystemPackages;
+
+  # Merge all flatpak packages
+  allFlatpakPackages = packagesInfo.extractedFlatpakIds ++ otherFlatpakPackages;
+
+  # Merge desktop entries config, excluding packages we're handling separately
+  desktopConfigWithoutPackages = builtins.removeAttrs desktopEntriesConfig ["environment"];
 in {
-  # --- This section defines the final module output ---
-  options =
-    appOptionDefinitionsFromFile
-    // {
-      myConstants = lib.mkOption {
-        type = lib.types.attrs;
-        readOnly = true;
-        description = "A set of common constants, provided by the apps module.";
-      };
-    };
+  options = import ./options.nix {inherit lib;};
 
-  config = let
-    resolveConfig = val:
-      if lib.isFunction val
-      then val topLevelModuleArgs.config
-      else val;
+  imports = [
+    desktopConfigWithoutPackages
+  ];
 
-    packagesFromProcessedApps = lib.flatten (lib.mapAttrsToList (_appKey: app: app.homePackages or []) processedApplications);
-    resolvedOtherGlobals = lib.mapAttrs (_name: resolveConfig) otherGlobalConfigsFromAppDefs;
+  config =
+    lib.recursiveUpdate {
+      myConstants = constants;
+      applications = processedApplications;
+      environment.systemPackages = allSystemPackages;
+      services.flatpak.packages = allFlatpakPackages;
 
-    directGlobalPackages = resolvedOtherGlobals.home.packages or [];
-    globalFlatpakOverrides = resolvedOtherGlobals.services.flatpak.overrides or {};
-    finalFlatpakOverrides = lib.recursiveUpdate globalFlatpakOverrides appSpecificFlatpakOverrides;
-
-    # The final config merges everything together. The module system will correctly
-    # combine the `home.file` definitions from `desktop-entries.nix` with any
-    # that might exist in `resolvedOtherGlobals` (like your mpv symlinks).
-    configLayers = [
-      {myConstants = constants;}
-      resolvedOtherGlobals
-      {applications = processedApplications;}
-      {home.packages = lib.unique (directGlobalPackages ++ packagesFromProcessedApps ++ derivedPackagesInfo.extractedNixPackages);}
-      {services.flatpak.packages = lib.unique derivedPackagesInfo.extractedFlatpakIds;}
-      {services.flatpak.overrides = finalFlatpakOverrides;}
-    ];
-  in
-    lib.foldl lib.recursiveUpdate {} configLayers;
+      # Add the rest of desktop entries config
+      inherit (desktopEntriesConfig) system;
+      environment.etc = desktopEntriesConfig.environment.etc or {};
+      home-manager = desktopEntriesConfig.home-manager or {};
+    }
+    otherConfigsClean;
 }

@@ -13,24 +13,26 @@
     appType = "terminal"; # Specify this is a terminal
   };
 in {
-  type = "nix";
-  id = constants.terminalName;
-  appId = "terminal";
-  key = "t";
+  terminal = {
+    type = "nix";
+    id = constants.terminalName;
+    appId = "terminal";
+    key = "t";
 
-  # Use the multiplexer launcher
-  launchCommand = "exec ${universalLauncher}/bin/universal-tmux-launcher-terminal";
+    # Use the multiplexer launcher
+    launchCommand = "exec ${universalLauncher}/bin/universal-tmux-launcher-terminal";
 
-  appDefHomePackages = [
+    desktopFile = {
+      generate = true;
+      displayName = "Terminal (Tabbed)";
+      iconName = constants.terminalName;
+      categories = ["System" "TerminalEmulator"];
+    };
+  };
+  environment.systemPackages = [
     pkgs.tmux
     pkgs.jq
     pkgs.coreutils
+    universalLauncher
   ];
-
-  desktopFile = {
-    generate = true;
-    displayName = "Terminal (Tabbed)";
-    iconName = constants.terminalName;
-    categories = ["System" "TerminalEmulator"];
-  };
 }

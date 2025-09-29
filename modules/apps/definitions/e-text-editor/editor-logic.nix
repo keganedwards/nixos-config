@@ -1,20 +1,17 @@
-# File: modules/home-manager/apps/definitions/e-text-editor/editor-logic.nix
 {
   pkgs,
+  config,
   constants,
-  inputs,
   ...
 }: let
-  # --- Component Definitions ---
-  editorConfigData = import ./editor-config.nix {inherit pkgs inputs;};
-  currentEditorPackage = editorConfigData.customNvfNeovimDerivation.neovim;
-  currentEditorExecutable = "${currentEditorPackage}/bin/nvim";
+  editorSettings = import ./editor-config.nix {inherit pkgs;};
 
-  # --- CORRECTED SECTION ---
-  # 1. Import your custom script instead of the generic one.
+  # Get the configured neovim package from programs.nvf
+  # This will be available after nvf builds it
+  currentEditorExecutable = "${config.programs.nvf.finalPackage}/bin/nvim";
+
   customEditorLauncherScript = import ./_launch-editor-with-tabs-script.nix {
     inherit pkgs;
-    # Provide the arguments your script expects:
     multiplexerSessionName = "main-editor-session";
     editorCmd = currentEditorExecutable;
     terminalCmd = constants.terminalBin;
@@ -22,47 +19,48 @@
     multiplexerBin = "${pkgs.tmux}/bin/tmux";
   };
 
-  # 2. Build the smart entrypoint script that handles sudoedit.
-  #    This now points to the correct launcher.
   smartLauncherScriptPkg = import ./_smart-editor-launcher-script.nix {
     inherit pkgs;
-    # Point it to the binary created by your custom script.
     defaultEditorLaunchCmd = "${customEditorLauncherScript}/bin/launch-editor-with-tabs";
   };
+
   smartLauncherExePath = "${smartLauncherScriptPkg}/bin/smart-editor-launcher";
 in {
-  type = "nix";
-  id = constants.editorNixPackageName or "neovim";
-  key = "e";
+  # Enable and configure nvf
+  programs.nvf = {
+    enable = true;
+    settings = editorSettings;
+  };
 
-  launchCommand = "exec ${smartLauncherExePath}";
+  e-text-editor = {
+    type = "nix";
+    id = constants.editorNixPackageName or "neovim";
+    key = "e";
 
-  appId = constants.editorAppIdForSway;
-  isTerminalApp = true;
+    launchCommand = "exec ${smartLauncherExePath}";
+    appId = constants.editorAppIdForSway;
+    isTerminalApp = true;
+    desktopFile = {
+      generate = true;
+      displayName = "Default Editor (Tabbed)";
+      iconName = constants.editorIconName or "nvim";
+      defaultAssociations = constants.commonTextEditorMimeTypes;
+      isDefaultHandler = true;
+      categories = ["Utility" "TextEditor" "Development"];
+    };
+  };
 
-  appDefHomePackages = [
-    currentEditorPackage
+  environment.systemPackages = [
     pkgs.tmux
     pkgs.coreutils
     pkgs.jq
-    # 3. Ensure the correct package is added to your profile.
-    customEditorLauncherScript # <-- This now installs `launch-editor-with-tabs`
+    customEditorLauncherScript
     smartLauncherScriptPkg
   ];
 
-  desktopFile = {
-    generate = true;
-    displayName = "Default Editor (Tabbed)";
-    iconName = constants.editorIconName or "nvim";
-    defaultAssociations = constants.commonTextEditorMimeTypes;
-    isDefaultHandler = true;
-    categories = ["Utility" "TextEditor" "Development"];
-  };
-
-  home.sessionVariables = {
-    # Your EDITOR is the smart launcher, which correctly chains to `launch-editor-with-tabs`
+  environment.variables = {
     EDITOR = smartLauncherExePath;
     VISUAL = smartLauncherExePath;
-    SUDO_EDITOR = currentEditorExecutable; # This is correct for sudoedit
+    SUDO_EDITOR = currentEditorExecutable;
   };
 }

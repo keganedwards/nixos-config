@@ -1,5 +1,7 @@
 {
-  type = "flatpak";
-  id = "org.gnome.clocks";
-  key = "6";
+  "clock" = {
+    type = "flatpak";
+    id = "org.gnome.clocks";
+    key = "6";
+  };
 }

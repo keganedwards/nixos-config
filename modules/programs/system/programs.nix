@@ -1,6 +1,1 @@
-_: {
-  programs = {
-    nano.enable = false;
-    kdeconnect.enable = true;
-  };
-}
+{programs.nano.enable = false;}

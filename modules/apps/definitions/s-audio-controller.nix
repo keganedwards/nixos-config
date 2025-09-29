@@ -1,5 +1,7 @@
 {
-  type = "flatpak";
-  id = "org.pulseaudio.pavucontrol";
-  key = "s";
+  "audio-controller" = {
+    type = "flatpak";
+    id = "org.pulseaudio.pavucontrol";
+    key = "s";
+  };
 }

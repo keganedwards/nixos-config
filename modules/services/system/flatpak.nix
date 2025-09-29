@@ -1,14 +1,4 @@
-# /modules/services/system/flatpak.nix
-{
-  nix-flatpak,
-  username,
-  ...
-}: {
+{nix-flatpak, ...}: {
   services.flatpak.enable = true;
-
-  home-manager.users.${username} = {
-    imports = [nix-flatpak.homeManagerModules.nix-flatpak];
-
-    services.flatpak.enable = true;
-  };
+  imports = [nix-flatpak.nixosModules.nix-flatpak];
 }

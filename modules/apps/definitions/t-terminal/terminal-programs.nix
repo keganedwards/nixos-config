@@ -1,6 +1,5 @@
-# File: modules/home-manager/apps/definitions/t-terminal/terminal-programs.nix
-_: {
-  programs.foot = {
+{username, ...}: {
+  home-manager.users.${username}.programs.foot = {
     enable = true;
     settings = {
       main = {

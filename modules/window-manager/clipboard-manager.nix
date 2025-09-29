@@ -1,15 +1,12 @@
-# File: modules/services/clipboard-manager.nix
 {
   lib,
   pkgs,
-  config,
+  flakeConstants,
   ...
 }: let
-  inherit (config.myConstants) terminalName;
-  inherit (config.myConstants) terminalBin;
   clipseExe = lib.getExe pkgs.clipse;
-  clipseSwayAppId = "clipse-${terminalName}";
-  launchClipseCommand = "${terminalBin} --app-id=${lib.escapeShellArg clipseSwayAppId} ${clipseExe}";
+  clipseSwayAppId = "clipse-${flakeConstants.terminalName}";
+  launchClipseCommand = "${flakeConstants.terminalBin} --app-id=${lib.escapeShellArg clipseSwayAppId} ${clipseExe}";
 
   # Command to start the clipse listener daemon
   startClipseListener = "${clipseExe} --listen";
@@ -27,7 +24,7 @@ in {
       # Start the clipse listener daemon when sway starts
       exec ${startClipseListener}
 
-      # Rule for Clipse UI (running in ${terminalName} with app_id ${clipseSwayAppId})
+      # Rule for Clipse UI (running in ${flakeConstants.terminalName} with app_id ${clipseSwayAppId})
       # to float, cover screen, and center.
       for_window [app_id="${clipseSwayAppId}"] floating enable, resize set width 100 ppt height 100 ppt, move position center
     '';

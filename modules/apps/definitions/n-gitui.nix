@@ -1,4 +1,3 @@
-# modules/home-manager/apps/definitions/n-gitui.nix
 {
   lib,
   pkgs,
@@ -19,13 +18,14 @@
     appType = "gitui"; # Specify this is a git UI app
   };
 in {
-  type = "nix";
-  id = "lazygit";
-  key = "n"; # 'n' is not used by left pinky and can stand for "navigator"
-  isTerminalApp = true;
-  launchCommand = "exec ${gituiLauncherScript}/bin/universal-tmux-launcher-terminal-gitui";
-  appId = "terminal-gitui";
-
-  # Enable lazygit in programs (minimal configuration)
+  gitui = {
+    type = "nix";
+    id = "lazygit";
+    key = "n"; # 'n' is not used by left pinky and can stand for "navigator"
+    isTerminalApp = true;
+    launchCommand = "exec ${gituiLauncherScript}/bin/universal-tmux-launcher-terminal-gitui";
+    appId = "terminal-gitui";
+  };
   programs.lazygit.enable = true;
+  environment.systemPackages = [gituiLauncherScript];
 }
