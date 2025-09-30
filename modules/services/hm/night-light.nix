@@ -20,7 +20,10 @@
 in {
   services.gammastep = {
     enable = true;
-    temperature.night = 1000;
+    temperature = {
+      night = 1000;
+      day = 6500;
+    };
     provider = "manual";
     latitude = latitude;
     longitude = longitude;
