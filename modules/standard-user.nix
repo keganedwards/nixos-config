@@ -1,4 +1,3 @@
-# /modules/users/standard-user.nix
 {
   username,
   fullName,
@@ -8,9 +7,7 @@
   users.users.${username} = {
     isNormalUser = true;
     description = fullName;
-    extraGroups = ["keyd" "input" "uinput" "networkmanager" "wheel" "libvirtd" "video" "keys" "tss" "nix-admins"];
+    extraGroups = ["keyd" "networkmanager" "wheel" "libvirtd" "video" "keys" "tss"];
   };
-  home-manager.users.${username} = {
-    home.stateVersion = flakeConstants.stateVersion;
-  };
+  home-manager.users.${username}.home.stateVersion = flakeConstants.stateVersion;
 }
