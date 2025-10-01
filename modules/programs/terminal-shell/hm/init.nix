@@ -1,22 +1,16 @@
+# /modules/programs/terminal-shell/hm/init.nix
 {
   programs.fish = {
     shellInit = ''
       # Suppress welcome message
       set -g fish_greeting ""
 
-      # Imperatively override RIPGREP_CONFIG_PATH to point to the correct user's home.
-      # This fixes the "Permission denied" error by forcing rg to look for its
-      # config file in the current user's home, not the protected user's.
+      # Override RIPGREP_CONFIG_PATH to point to the correct user's home
       set -gx RIPGREP_CONFIG_PATH ~/.config/ripgrep/ripgreprc
-
-      # Load nix-your-shell if available
-      if command -q nix-your-shell
-        nix-your-shell fish | source
-      end
     '';
 
     interactiveShellInit = ''
-      # Initial directory listing on startup (use eza directly, not through secure wrapper)
+      # Initial directory listing on startup
       if not set -q __initial_listing_done
         set -g __initial_listing_done 1
         if command -q eza
@@ -27,16 +21,13 @@
         echo
       end
 
-      # Custom key bindings for our corrected functions
+      # Custom key bindings for fzf functions
       function fish_user_key_bindings
         bind \ct fzf_file_widget_corrected
         bind \ec fzf_zoxide_changer_corrected
         bind \ed fzf_insert_dir_corrected
         bind \cr fzf_history_widget_corrected
       end
-
-      # Security: Prevent command injection in prompts
-      set -g fish_prompt_pwd_full_dirs 0
     '';
 
     loginShellInit = ''

@@ -1,3 +1,4 @@
+# /modules/programs/terminal-shell/security.nix (unchanged)
 {
   pkgs,
   username,
@@ -31,12 +32,10 @@ in {
 
       fd = {
         enable = true;
-        # These options are not related to ignoring files, so they stay.
         extraOptions = [
           "--hidden"
           "--follow"
         ];
-        # The ignores list is the proper place for permanent exclusions.
         ignores = [
           ".git"
           "node_modules"
@@ -77,7 +76,6 @@ in {
       tldr
       direnv
       nix-direnv
-      nix-your-shell
       zoxide
       eza
       fzf
