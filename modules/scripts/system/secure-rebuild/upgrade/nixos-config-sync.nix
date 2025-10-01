@@ -2,9 +2,15 @@
   pkgs,
   config,
   username,
+  fullName,
+  email,
   flakeDir,
   ...
 }: let
+  helpers = import ./helpers.nix {
+    inherit pkgs config username fullName email;
+  };
+
   sshPassphraseFile = config.sops.secrets."ssh-key-passphrase".path;
   dotfilesDir = "/home/${username}/.dotfiles";
   stateDir = "/var/lib/boot-update";
@@ -23,11 +29,7 @@
     #!${pkgs.bash}/bin/bash
     set -euo pipefail
 
-    log_header()  { echo -e "\n\e[1;35m--- $1 ---\e[0m"; }
-    log_info()    { echo -e "\e[34m[INFO]\e[0m $1"; }
-    log_success() { echo -e "\e[32m[SUCCESS]\e[0m $1"; }
-    log_error()   { echo -e "\e[1;31m[ERROR]\e[0m $1"; }
-    log_warning() { echo -e "\e[33m[WARNING]\e[0m $1"; }
+    ${helpers.loggingHelpers}
 
     # Start by logging only to journal (silent, no TTY switch)
     exec 1> >(${pkgs.systemd}/bin/systemd-cat -t boot-update) 2>&1
@@ -68,8 +70,6 @@
     SYSTEM_UPDATED=false
     FLATPAK_UPDATED=false
     export HOME="/home/${username}"
-    export GIT_SSH_COMMAND="${pkgs.openssh}/bin/ssh -i /home/${username}/.ssh/id_ed25519 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/home/${username}/.ssh/known_hosts"
-    PASSPHRASE=$(cat ${sshPassphraseFile})
 
     # ===== UPDATE SYSTEM FLAKE =====
     log_info "Checking system configuration repository"
@@ -89,9 +89,8 @@
       log_success "Repository is clean."
 
       log_info "Fetching upstream changes..."
-      if ! runuser -u ${username} -p -- \
-          ${pkgs.sshpass}/bin/sshpass -p "$PASSPHRASE" -P "passphrase" \
-          $GIT_CMD fetch origin; then
+      # Use gitSshHelper for authenticated git operations - runs as root
+      if ! ${helpers.gitSshHelper} fetch "${flakeDir}" origin; then
         log_error "Failed to fetch from upstream."
         echo "FETCH_FAILED" > ${statusFile}
       else
@@ -113,9 +112,7 @@
           log_header "System Updates Available"
           log_info "Upstream changes detected ($COMMITS_BEHIND commits behind). Pulling changes..."
 
-          if ! runuser -u ${username} -p -- \
-              ${pkgs.sshpass}/bin/sshpass -p "$PASSPHRASE" -P "passphrase" \
-              $GIT_CMD pull origin main; then
+          if ! ${helpers.gitSshHelper} pull "${flakeDir}" origin main; then
             log_error "Failed to pull changes from upstream."
             echo "PULL_FAILED" > ${statusFile}
             exit 0
@@ -135,14 +132,16 @@
 
                 runuser -u ${username} -- $GIT_CMD add flake.lock
                 log_info "Committing flake.lock...";
-                runuser -u ${username} -p -- \
-                  ${pkgs.sshpass}/bin/sshpass -p "$PASSPHRASE" -P "passphrase" \
-                  $GIT_CMD commit -m "flake: update inputs"
+
+                # Use gitSshHelper for commit (sets up git identity and signing)
+                if ! ${helpers.gitSshHelper} commit "${flakeDir}" -m "flake: update inputs"; then
+                  log_error "Failed to commit changes"
+                  echo "COMMIT_FAILED" > ${statusFile}
+                  exit 0
+                fi
 
                 log_info "Pushing changes to upstream..."
-                if ! runuser -u ${username} -p -- \
-                    ${pkgs.sshpass}/bin/sshpass -p "$PASSPHRASE" -P "passphrase" \
-                    $GIT_CMD push origin main; then
+                if ! ${helpers.gitSshHelper} push "${flakeDir}" origin main; then
                   log_error "Failed to push flake.lock changes."
                   echo "PUSH_FAILED" > ${statusFile}
                   exit 0
@@ -187,9 +186,7 @@
       fi
 
       log_info "Fetching dotfiles updates..."
-      if ! runuser -u ${username} -p -- \
-          ${pkgs.sshpass}/bin/sshpass -p "$PASSPHRASE" -P "passphrase" \
-          $DOTFILES_CMD fetch origin; then
+      if ! ${helpers.gitSshHelper} fetch "${dotfilesDir}" origin; then
         log_error "Failed to fetch dotfiles from upstream."
       else
         DOTFILES_COMMITS_BEHIND=$(runuser -u ${username} -- $DOTFILES_CMD rev-list --count HEAD..origin/main)
@@ -211,13 +208,14 @@
     log_info "Checking for Flatpak updates..."
 
     if command -v ${pkgs.flatpak}/bin/flatpak >/dev/null 2>&1; then
-      # Check if there are flatpak updates available
-      FLATPAK_UPDATES=$(runuser -u ${username} -- ${pkgs.flatpak}/bin/flatpak remote-ls --updates 2>/dev/null | wc -l)
+      # Check system-level flatpaks (running as root, so check --system)
+      FLATPAK_UPDATES=$(${pkgs.flatpak}/bin/flatpak remote-ls --system --updates 2>/dev/null | wc -l)
 
       if [ "$FLATPAK_UPDATES" -gt 0 ]; then
         log_info "Found $FLATPAK_UPDATES Flatpak updates. Applying..."
 
-        if runuser -u ${username} -- ${pkgs.flatpak}/bin/flatpak update -y; then
+        # Update system-level flatpaks as root
+        if ${pkgs.flatpak}/bin/flatpak update --system -y; then
           log_success "Flatpak updates completed successfully."
           FLATPAK_UPDATED=true
         else
@@ -304,6 +302,11 @@
           "⬆️ Update Failed" \
           "❌ Failed to push flake.lock updates to remote."
         ;;
+      COMMIT_FAILED)
+        ${pkgs.libnotify}/bin/notify-send -u critical -t 10000 \
+          "📝 Commit Failed" \
+          "❌ Failed to commit flake.lock changes."
+        ;;
       BUILD_FAILED)
         ${pkgs.libnotify}/bin/notify-send -u critical -t 10000 \
           "🔨 System Build Failed" \
@@ -371,7 +374,7 @@ in {
       ExecCondition = "${uptimeCheck}";
       ExecStart = "${bootUpdateWorker}";
 
-      Environment = "PATH=${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.nix}/bin:${pkgs.iputils}/bin:${pkgs.coreutils}/bin:${pkgs.flatpak}/bin:/run/current-system/sw/bin";
+      Environment = "PATH=${pkgs.git}/bin:${pkgs.openssh}/bin:${pkgs.nix}/bin:${pkgs.iputils}/bin:${pkgs.coreutils}/bin:${pkgs.flatpak}/bin:${pkgs.sudo}/bin:${pkgs.expect}/bin:/run/current-system/sw/bin";
 
       User = "root";
       Group = "root";

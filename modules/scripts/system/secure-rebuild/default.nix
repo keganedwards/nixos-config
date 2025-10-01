@@ -1,7 +1,7 @@
 {
   imports = [
     ./secure-rebuild.nix
-    ./upgrade.nix
+    ./upgrade
     ./test.nix
   ];
 }

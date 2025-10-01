@@ -10,7 +10,7 @@ in {
     id = "org.qbittorrent.qBittorrent";
     key = "bracketright"; # Based on the filename "bracketright-"
     launchCommand = "exec launch-vpn-app flatpak run org.qbittorrent.qBittorrent";
-    autostartPriority = 10;
+    autostart = true;
   };
   home-manager.users.${username}.home.file = {
     "/home/${username}/.var/app/org.qbittorrent.qBittorrent/config/qBittorrent" = {

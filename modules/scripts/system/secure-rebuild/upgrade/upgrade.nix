@@ -7,6 +7,10 @@
   flakeDir,
   ...
 }: let
+  helpers = import ./helpers.nix {
+    inherit pkgs config username fullName email;
+  };
+
   sshPassphraseFile = config.sops.secrets."ssh-key-passphrase".path;
   upgradeResultFile = "/var/lib/upgrade-service/last-result";
   batteryThreshold = 30;
@@ -22,10 +26,7 @@
     GIT_STATUS=""
     EXPECTED_STATUS=" M flake.lock"
 
-    log_header()  { echo -e "\n\e[1;35m--- $1 ---\e[0m"; }
-    log_info()    { echo -e "\e[34m[INFO]\e[0m $1"; }
-    log_success() { echo -e "\e[32m[SUCCESS]\e[0m $1"; }
-    log_error()   { echo -e "\e[1;31m[ERROR]\e[0m $1"; }
+    ${helpers.loggingHelpers}
 
     # Function to write result for notification service
     write_result() {
@@ -37,26 +38,12 @@
     push_to_git() {
       if [ $UPGRADE_SUCCESS -eq 1 ]; then
         log_info "Pushing flake.lock to remote repository..."
-        PASSPHRASE=$(cat ${sshPassphraseFile})
-        if [ -z "$PASSPHRASE" ]; then
-          log_error "Failed to read SSH passphrase for git push!"
-          # Do not write an error result here, as the upgrade itself was successful
-          return
-        fi
 
-        ${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.coreutils}/bin/env -i \
-          "PASSPHRASE=$PASSPHRASE" \
-          HOME="/home/${username}" \
-          USER="${username}" \
-          LOGNAME="${username}" \
-          PATH="/run/current-system/sw/bin:${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin" \
-          GIT_SSH_COMMAND='${pkgs.openssh}/bin/ssh -o BatchMode=yes -o StrictHostKeyChecking=no' \
-          bash -c "
-            set -euo pipefail
-            cd ${flakeDir}
-            echo \"\$PASSPHRASE\" | sshpass -p \"\$PASSPHRASE\" -P 'passphrase' \
-              git -c safe.directory=${flakeDir} push
-          " && log_success "Successfully pushed to remote." || log_error "Failed to push to remote."
+        if ${helpers.gitSshHelper} push "${flakeDir}" origin main; then
+          log_success "Successfully pushed to remote."
+        else
+          log_error "Failed to push to remote."
+        fi
       fi
     }
 
@@ -183,8 +170,6 @@
       log_info "Turning off display..."
 
       ${pkgs.kbd}/bin/setterm -blank force -powersave on > /dev/tty1 2>/dev/null || true
-
-      echo 0 > /sys/module/kernel/parameters/consoleblank 2>/dev/null || true
     }
 
     # Main upgrade logic starts here
@@ -216,8 +201,9 @@
     # Start flatpak operations early in parallel
     log_info "Starting Flatpak updates in background..."
     (
-      ${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.flatpak}/bin/flatpak update -y 2>&1 | tee /tmp/flatpak-update.log || true
-      ${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.flatpak}/bin/flatpak uninstall --unused -y 2>&1 | tee -a /tmp/flatpak-update.log || true
+      # Update system-level flatpaks as root
+      ${pkgs.flatpak}/bin/flatpak update --system -y 2>&1 | tee /tmp/flatpak-update.log || true
+      ${pkgs.flatpak}/bin/flatpak uninstall --system --unused -y 2>&1 | tee -a /tmp/flatpak-update.log || true
     ) &
     FLATPAK_PID=$!
 
@@ -251,34 +237,14 @@
 
       ${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.git}/bin/git -c safe.directory=${flakeDir} -C ${flakeDir} add flake.lock
 
-      PASSPHRASE=$(cat ${sshPassphraseFile})
-      if [ -z "$PASSPHRASE" ]; then
-        log_error "Failed to read SSH passphrase from sops!"
-        write_result "error:passphrase_read_failed"
-        exit 1
-      fi
-
       log_info "Committing flake.lock..."
-      # This block uses `env -i` to create a clean, non-graphical environment,
-      # preventing hangs with display managers like SDDM. The PASSPHRASE variable
-      # is explicitly passed into this sanitized environment.
-      ${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.coreutils}/bin/env -i \
-        "PASSPHRASE=$PASSPHRASE" \
-        HOME="/home/${username}" \
-        USER="${username}" \
-        LOGNAME="${username}" \
-        PATH="/run/current-system/sw/bin:${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin" \
-        GIT_AUTHOR_NAME='${fullName}' \
-        GIT_AUTHOR_EMAIL='${email}' \
-        GIT_COMMITTER_NAME='${fullName}' \
-        GIT_COMMITTER_EMAIL='${email}' \
-        GIT_SSH_COMMAND='${pkgs.openssh}/bin/ssh -o BatchMode=yes -o StrictHostKeyChecking=no' \
-        bash -c "
-          set -euo pipefail
-          cd ${flakeDir}
-          echo \"\$PASSPHRASE\" | sshpass -p \"\$PASSPHRASE\" -P 'passphrase' \
-            git -c safe.directory=${flakeDir} commit -m 'flake: update inputs'
-        "
+      # Use gitSshHelper for commit with SSH agent
+      if ! ${helpers.gitSshHelper} commit "${flakeDir}" -m "flake: update inputs"; then
+        log_error "Failed to commit changes"
+        write_result "error:commit_failed"
+        wait $FLATPAK_PID || true
+        cleanup_and_exit 1
+      fi
 
       LATEST_HASH=$(${pkgs.sudo}/bin/sudo -u ${username} ${pkgs.git}/bin/git -c safe.directory=${flakeDir} -C ${flakeDir} rev-parse HEAD)
       log_info "New commit created: ''${LATEST_HASH:0:7}"
@@ -390,6 +356,11 @@
           "⚠️ Upgrade Failed: Low Battery" \
           "Battery level was $LEVEL% (minimum ${toString batteryThreshold}% required). Please charge before upgrading."
         ;;
+      error:commit_failed)
+        ${pkgs.libnotify}/bin/notify-send -u critical -t 0 \
+          "⚠️ Upgrade Failed: Commit Error" \
+          "Failed to commit changes. Check logs for details."
+        ;;
       error:build_failed)
         ${pkgs.libnotify}/bin/notify-send -u critical -t 0 \
           "⚠️ Upgrade Failed: Build Error" \
@@ -425,7 +396,7 @@ in {
           StandardOutput = "journal+console";
           StandardError = "journal+console";
           TTYPath = "/dev/tty1";
-          Environment = "PATH=${pkgs.coreutils}/bin:${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:${pkgs.nix-index}/bin:${pkgs.nix}/bin:${pkgs.curl}/bin:${pkgs.jq}/bin:${pkgs.bc}/bin:${pkgs.gnused}/bin:${pkgs.kbd}/bin:${pkgs.sudo}/bin:${pkgs.ripgrep}/bin:${pkgs.procps}/bin:/run/current-system/sw/bin";
+          Environment = "PATH=${pkgs.coreutils}/bin:${pkgs.git}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:${pkgs.nix-index}/bin:${pkgs.nix}/bin:${pkgs.curl}/bin:${pkgs.jq}/bin:${pkgs.bc}/bin:${pkgs.gnused}/bin:${pkgs.kbd}/bin:${pkgs.sudo}/bin:${pkgs.ripgrep}/bin:${pkgs.procps}/bin:${pkgs.expect}/bin:${pkgs.bash}/bin:/run/current-system/sw/bin";
           ExecStart = "${upgradeAndPowerOffWorker} reboot";
           User = "root";
           Group = "root";
@@ -440,7 +411,7 @@ in {
           StandardOutput = "journal+console";
           StandardError = "journal+console";
           TTYPath = "/dev/tty1";
-          Environment = "PATH=${pkgs.coreutils}/bin:${pkgs.git}/bin:${pkgs.sshpass}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:${pkgs.nix-index}/bin:${pkgs.nix}/bin:${pkgs.curl}/bin:${pkgs.jq}/bin:${pkgs.bc}/bin:${pkgs.gnused}/bin:${pkgs.kbd}/bin:${pkgs.sudo}/bin:${pkgs.ripgrep}/bin:${pkgs.procps}/bin:/run/current-system/sw/bin";
+          Environment = "PATH=${pkgs.coreutils}/bin:${pkgs.git}/bin:${pkgs.openssh}/bin:${pkgs.ncurses}/bin:${pkgs.sway}/bin:${pkgs.flatpak}/bin:${pkgs.nix-index}/bin:${pkgs.nix}/bin:${pkgs.curl}/bin:${pkgs.jq}/bin:${pkgs.bc}/bin:${pkgs.gnused}/bin:${pkgs.kbd}/bin:${pkgs.sudo}/bin:${pkgs.ripgrep}/bin:${pkgs.procps}/bin:${pkgs.expect}/bin:${pkgs.bash}/bin:/run/current-system/sw/bin";
           ExecStart = "${upgradeAndPowerOffWorker} shutdown";
           User = "root";
           Group = "root";
@@ -479,19 +450,6 @@ in {
       ];
     }
   ];
-
-  home-manager.users.root = {
-    home.stateVersion = config.home-manager.users.${username}.home.stateVersion;
-
-    programs.git = {
-      enable = true;
-      extraConfig = {
-        safe = {
-          directory = flakeDir;
-        };
-      };
-    };
-  };
 
   home-manager.users.${username} = {
     wayland.windowManager.sway.config.keybindings = {
