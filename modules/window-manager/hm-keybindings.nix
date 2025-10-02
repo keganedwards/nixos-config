@@ -26,14 +26,6 @@ in {
     "mod4+Mod1+Right" = "exec ${pkgs.playerctl}/bin/playerctl next";
     "mod4+Mod1+Left" = "exec ${pkgs.playerctl}/bin/playerctl previous";
 
-    "mod4+Shift+v" = "exec sway-sink-volume";
-    "mod4+Shift+m" = "exec sway-mic-volume";
-    "Shift+insert" = "exec sway-source-volume";
-    "mod4+Shift+w" = "exec sway-wifi-status";
-    "mod4+Shift+b" = "exec sway-battery-status";
-    "mod4+Shift+t" = "exec sway-show-time";
-    "mod4+Shift+r" = "exec sway-reload-env";
-
     "Mod1+Shift+right" = "exec sway-lock-secure";
     "mod4+Mod1+Shift+s" = "exec systemctl suspend";
     "Mod1+Shift+down" = "exec systemctl hibernate";

@@ -2,7 +2,11 @@
   imports = [
     ./push.nix
     ./secure-rebuild
-    ./sway-scripts.nix
-    #    ./setup-cryptenroll.nix
+    ./battery-status.nix
+    ./mic-volume.nix
+    ./sink-volume.nix
+    #./source-volume.nix
+    ./show-time.nix
+    ./wifi-status.nix
   ];
 }

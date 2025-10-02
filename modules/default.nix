@@ -1,5 +1,6 @@
 {username, ...}: {
   imports = [
+    ./window-manager/constants.nix
     ./apps
     ./boot.nix
     ./fonts.nix

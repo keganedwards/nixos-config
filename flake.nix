@@ -81,7 +81,7 @@
       inherit self nixpkgs home-manager sops-nix nix-flatpak catppuccin nvf system hostname nixos-hardware;
       inherit username fullName email;
       flakeDir = "/home/${username}/nixos-config";
-      flakeConstants = import ./flake-constants.nix {
+      flakeConstants = import ./constants/flake-constants.nix {
         inherit (nixpkgs) lib;
         pkgs = nixpkgs.legacyPackages.${system};
         inherit stateVersion hostname;
