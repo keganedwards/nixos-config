@@ -29,18 +29,6 @@
         bind \cr fzf_history_widget_corrected
       end
     '';
-
-    loginShellInit = ''
-      # Auto-start tmux
-      if command -v tmux >/dev/null 2>&1; and not set -q TMUX
-        if status is-interactive
-          set parent_cmd (ps -p $fish_pid -o comm= 2>/dev/null || echo "")
-          if not string match -q "*build*" "$parent_cmd"
-            exec tmux -f ~/.config/tmux/tmux.conf new-session -A -s default -c ~
-          end
-        end
-      end
-    '';
   };
 
   xdg.configFile."fish/conf.d/.keep".text = "";

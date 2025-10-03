@@ -13,10 +13,6 @@ in {
       export SWAYSOCK="$SOCK_PATH"
       echo "SWAYSOCK set to $SWAYSOCK"
 
-      if [ -n "$TMUX" ]; then
-        ${pkgs.tmux}/bin/tmux set-environment -g SWAYSOCK "$SWAYSOCK"
-        echo "Also updated tmux environment SWAYSOCK"
-      fi
 
       echo "Reloading window manager configuration..."
       ${wmConstants.reload}
