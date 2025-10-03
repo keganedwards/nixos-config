@@ -1,4 +1,3 @@
-# editor-config.nix
 {pkgs, ...}: {
   vim = {
     options = {
@@ -10,6 +9,15 @@
       title = true;
       titlestring = "%t";
     };
+
+    maps = {
+      normal."<C-t>" = {
+        action = "lua require('fzf-lua').files()<CR>";
+        silent = true;
+        desc = "FzfLua Files";
+      };
+    };
+
     spellcheck.enable = true;
     globals.mapleader = "\\";
     clipboard = {
@@ -39,7 +47,14 @@
       };
       markdown = {
         enable = true;
-        extensions.render-markdown-nvim.enable = true;
+        extensions.render-markdown-nvim = {
+          enable = true;
+          setupOpts = {
+            html.enabled = false;
+            latex.enabled = false;
+            yaml.enabled = false;
+          };
+        };
       };
       python = {
         enable = true;
@@ -50,17 +65,7 @@
       };
       bash.enable = true;
     };
-    autocomplete = {
-      "nvim-cmp" = {
-        enable = true;
-        sources = {
-          nvim_lsp = "[LSP]";
-          buffer = "[Buffer]";
-          path = "[Path]";
-          nvim_lua = "[Lua]";
-        };
-      };
-    };
+    autocomplete."nvim-cmp".enable = true;
     statusline.lualine.enable = true;
     fzf-lua.enable = true;
     git.enable = true;
@@ -89,24 +94,6 @@
         };
       };
     };
-    extraPackages = [
-      pkgs.fzf
-      pkgs.alejandra
-      pkgs.black
-      pkgs.nodePackages.prettier
-      pkgs.stylua
-      pkgs.csharpier
-      pkgs.wl-clipboard
-      pkgs.shfmt
-    ];
-    extraPlugins = with pkgs.vimPlugins; {
-      cmp-nvim-lsp = {package = cmp-nvim-lsp;};
-      cmp-buffer = {package = cmp-buffer;};
-      cmp-path = {package = cmp-path;};
-      cmp-nvim-lua = {package = cmp-nvim-lua;};
-      cmp_luasnip = {package = cmp_luasnip;};
-      friendly-snippets = {package = friendly-snippets;};
-    };
     snippets.luasnip = {
       enable = true;
       loaders = ''require('luasnip.loaders.from_vscode').lazy_load() require('luasnip.loaders.from_snipmate').lazy_load() '';
@@ -119,5 +106,27 @@
       enable = true;
       setupOpts.scope.enabled = true;
     };
+    extraPlugins = with pkgs.vimPlugins; {
+      cmp-nvim-lsp = {package = cmp-nvim-lsp;};
+      cmp-buffer = {package = cmp-buffer;};
+      cmp-path = {package = cmp-path;};
+      cmp-nvim-lua = {package = cmp-nvim-lua;};
+      cmp_luasnip = {package = cmp_luasnip;};
+      friendly-snippets = {package = friendly-snippets;};
+    };
+    extraPackages = [
+      pkgs.fzf
+      pkgs.alejandra
+      pkgs.black
+      pkgs.nodePackages.prettier
+      pkgs.stylua
+      pkgs.shfmt
+      pkgs.wl-clipboard
+      pkgs.gcc
+      pkgs.tree-sitter
+      pkgs.dotnet-sdk
+      pkgs.csharpier
+      pkgs.luajitPackages.jsregexp
+    ];
   };
 }
