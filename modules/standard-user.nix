@@ -9,5 +9,8 @@
     description = fullName;
     extraGroups = ["keyd" "networkmanager" "wheel" "libvirtd" "video" "keys" "tss"];
   };
-  home-manager.users.${username}.home.stateVersion = stateVersion;
+  home-manager = {
+    backupFileExtension = "backup";
+    users.${username}.home.stateVersion = stateVersion;
+  };
 }
