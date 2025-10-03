@@ -11,7 +11,7 @@
     };
 
     maps = {
-      normal."<C-t>" = {
+      normal."<leader>f" = {
         action = "lua require('fzf-lua').files()<CR>";
         silent = true;
         desc = "FzfLua Files";
@@ -28,6 +28,7 @@
       enable = true;
       ui.enable = true;
     };
+
     languages = {
       enableTreesitter = true;
       enableDAP = true;
