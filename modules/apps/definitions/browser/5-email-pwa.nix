@@ -1,5 +1,5 @@
 {
-  "email" = {
+  config.rawAppDefinitions."email" = {
     type = "pwa";
     id = "https://mail.proton.me";
     appId = "brave-mail.proton.me__-Default";

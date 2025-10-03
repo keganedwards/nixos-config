@@ -29,7 +29,6 @@
     nixos-hardware = {
       url = "github:NixOS/nixos-hardware";
     };
-    # <-- ADDED
     nix-index-database = {
       url = "github:nix-community/nix-index-database";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -46,7 +45,7 @@
     nvf,
     pre-commit-hooks,
     nixos-hardware,
-    nix-index-database, # <-- ADDED
+    nix-index-database,
   }: let
     stateVersion = "23.11";
 
@@ -79,13 +78,8 @@
     }: {
       inherit inputs;
       inherit self nixpkgs home-manager sops-nix nix-flatpak catppuccin nvf system hostname nixos-hardware;
-      inherit username fullName email;
+      inherit username fullName email stateVersion;
       flakeDir = "/home/${username}/nixos-config";
-      flakeConstants = import ./constants/flake-constants.nix {
-        inherit (nixpkgs) lib;
-        pkgs = nixpkgs.legacyPackages.${system};
-        inherit stateVersion hostname;
-      };
     };
 
     nixosConfigurations =
@@ -115,6 +109,7 @@
               nix-index-database.nixosModules.nix-index
               {programs.nix-index-database.comma.enable = true;}
               nvf.nixosModules.default
+              ./constants
               ./modules
               hostParams.path
               {home-manager.extraSpecialArgs = argsBase;}

@@ -1,9 +1,13 @@
 {
   pkgs,
   config,
+  username,
+  lib,
   ...
 }: let
-  wallpaperDir = "${config.xdg.dataHome}/wallpapers/Bing";
+  wm = config.windowManagerConstants;
+
+  wallpaperDir = "${config.home-manager.users.${username}.xdg.dataHome}/wallpapers/Bing";
   wallpaperPath = "${wallpaperDir}/desktop.jpg";
   lockscreenPath = "${wallpaperDir}/lockscreen.jpg";
 
@@ -16,7 +20,7 @@
       jq
       curl
       imagemagick
-      sway # For swaymsg
+      wm.session.desktopName
       gnugrep
       findutils
     ];
@@ -32,7 +36,7 @@
 
       get_monitor_resolution() {
         if [ -z "''${SWAYSOCK:-}" ]; then echo "Error: SWAYSOCK not set" >&2; return 1; fi
-        timeout 10s swaymsg -t get_outputs | \
+        timeout 10s ${wm.ipc.getTree} | \
           jq -r '[.[] | select(.active == true) | .current_mode.width, .current_mode.height] | select(length==2) | "\(.[0])x\(.[1])"' | head -n 1
       }
 
@@ -90,9 +94,9 @@
       fi
 
       if [ -f "$WALLPAPER_PATH" ]; then
-         echo "Setting wallpaper for live session via swaymsg..."
-         if ! timeout 10s swaymsg "output * bg \"$WALLPAPER_PATH\" fill"; then
-            echo "Warn: swaymsg failed. Is Sway running?" >&2
+         echo "Setting wallpaper for live session via window manager..."
+         if ! timeout 10s ${wm.msg} "output * bg \"$WALLPAPER_PATH\" fill"; then
+            echo "Warn: Window manager command failed. Is it running?" >&2
          else
             echo "Live wallpaper set."
          fi
@@ -106,42 +110,46 @@
     '';
   };
 in {
-  systemd.user.services.bing-wallpaper = {
-    Unit = {
-      Description = "Bing Wallpaper Fetcher/Setter";
-      After = ["graphical-session.target" "network-online.target" "time-sync.target"];
-      Wants = ["network-online.target"];
-    };
-    Service = {
-      Type = "oneshot";
-      ExecStart = "${bingWallpaperScript}/bin/bing-wallpaper-hm";
-      PassEnvironment = [
-        "DISPLAY"
-        "WAYLAND_DISPLAY"
-        "SWAYSOCK"
-        "XDG_RUNTIME_DIR"
-        "DBUS_SESSION_BUS_ADDRESS"
-        "HOME"
-      ];
-    };
-  };
-
-  systemd.user.timers.bing-wallpaper = {
-    Unit = {
-      Description = "Run Bing Wallpaper Service Daily";
-    };
-    Timer = {
-      OnCalendar = "daily";
-      Persistent = true;
-      RandomizedDelaySec = "15m";
-    };
-    Install = {
-      WantedBy = ["timers.target"];
-    };
-  };
-  wayland.windowManager.sway.config.startup = [
+  home-manager.users.${username} = lib.mkMerge [
     {
-      command = "swaymsg 'output * bg ${config.home.homeDirectory}/.local/share/wallpapers/Bing/desktop.jpg fill'";
+      systemd.user.services.bing-wallpaper = {
+        Unit = {
+          Description = "Bing Wallpaper Fetcher/Setter";
+          After = ["graphical-session.target" "network-online.target" "time-sync.target"];
+          Wants = ["network-online.target"];
+        };
+        Service = {
+          Type = "oneshot";
+          ExecStart = "${bingWallpaperScript}/bin/bing-wallpaper-hm";
+          PassEnvironment =
+            wm.session.envVars
+            ++ [
+              "XDG_RUNTIME_DIR"
+              "DBUS_SESSION_BUS_ADDRESS"
+              "HOME"
+            ];
+        };
+      };
+
+      systemd.user.timers.bing-wallpaper = {
+        Unit = {
+          Description = "Run Bing Wallpaper Service Daily";
+        };
+        Timer = {
+          OnCalendar = "daily";
+          Persistent = true;
+          RandomizedDelaySec = "15m";
+        };
+        Install = {
+          WantedBy = ["timers.target"];
+        };
+      };
     }
+
+    (wm.setStartup [
+      {
+        command = "${wm.msg} 'output * bg ${config.home-manager.users.${username}.home.homeDirectory}/.local/share/wallpapers/Bing/desktop.jpg fill'";
+      }
+    ])
   ];
 }

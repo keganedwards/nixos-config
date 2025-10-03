@@ -5,7 +5,7 @@
   username,
   ...
 }: let
-  # Access system-level applications
+  wm = config.windowManagerConstants;
   processedApps = config.applications or {};
 
   entries =
@@ -14,7 +14,6 @@
         if appConfig.autostart or false && appConfig.launchCommand != null
         then {
           rawCmd = appConfig.launchCommand;
-          # Use autostartPriority if defined, otherwise default to 100
           priority = appConfig.autostartPriority or 100;
           type = appConfig.type or "unknown";
         }
@@ -24,7 +23,6 @@
 
   sorted = lib.sort (a: b: a.priority < b.priority) (lib.filter (e: e != null) entries);
 
-  # Calculate cumulative delay for PWAs
   addDelayToPwas = entries: let
     processEntries = acc: remaining:
       if remaining == []
@@ -66,7 +64,5 @@
 
   startupCommands = addDelayToPwas sorted;
 in {
-  home-manager.users.${username} = {
-    wayland.windowManager.sway.config.startup = startupCommands;
-  };
+  home-manager.users.${username} = wm.setStartup startupCommands;
 }

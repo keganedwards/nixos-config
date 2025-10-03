@@ -209,46 +209,48 @@
     ${addedSection}
   '';
 in {
-  # Add wrapper scripts and desktop file utilities to system packages
-  environment.systemPackages =
-    wrapperPackages
-    ++ (lib.attrValues desktopFiles)
-    ++ [
-      pkgs.desktop-file-utils
-      pkgs.xdg-utils
-      pkgs.shared-mime-info
-    ];
+  config = {
+    # Add wrapper scripts and desktop file utilities to system packages
+    environment.systemPackages =
+      wrapperPackages
+      ++ (lib.attrValues desktopFiles)
+      ++ [
+        pkgs.desktop-file-utils
+        pkgs.xdg-utils
+        pkgs.shared-mime-info
+      ];
 
-  # Set up system-wide mime associations
-  environment.etc."xdg/mimeapps.list" = lib.mkIf (mimeAssociations.defaultApplications != {} || mimeAssociations.addedAssociations != {}) {
-    text = mimeappsContent;
-  };
-
-  # Ensure XDG directories exist and databases are updated
-  system.activationScripts.updateDesktopDatabase = lib.stringAfter ["etc"] ''
-    # Update system-wide desktop database
-    if command -v update-desktop-database >/dev/null 2>&1; then
-      echo "Updating system desktop database..."
-      ${pkgs.desktop-file-utils}/bin/update-desktop-database -q /run/current-system/sw/share/applications || true
-    fi
-
-    # Update MIME database
-    if command -v update-mime-database >/dev/null 2>&1; then
-      echo "Updating system MIME database..."
-      ${pkgs.shared-mime-info}/bin/update-mime-database /run/current-system/sw/share/mime || true
-    fi
-  '';
-
-  # For home-manager integration, still provide user-specific settings
-  home-manager.users.${username} = {
-    # Link to system mimeapps.list if user doesn't have their own
-    xdg.configFile."mimeapps.list" = lib.mkDefault {
-      source = config.environment.etc."xdg/mimeapps.list".source;
-      force = true;
+    # Set up system-wide mime associations
+    environment.etc."xdg/mimeapps.list" = lib.mkIf (mimeAssociations.defaultApplications != {} || mimeAssociations.addedAssociations != {}) {
+      text = mimeappsContent;
     };
 
-    # Ensure XDG is enabled
-    xdg.enable = true;
-    xdg.mime.enable = true;
+    # Ensure XDG directories exist and databases are updated
+    system.activationScripts.updateDesktopDatabase = lib.stringAfter ["etc"] ''
+      # Update system-wide desktop database
+      if command -v update-desktop-database >/dev/null 2>&1; then
+        echo "Updating system desktop database..."
+        ${pkgs.desktop-file-utils}/bin/update-desktop-database -q /run/current-system/sw/share/applications || true
+      fi
+
+      # Update MIME database
+      if command -v update-mime-database >/dev/null 2>&1; then
+        echo "Updating system MIME database..."
+        ${pkgs.shared-mime-info}/bin/update-mime-database /run/current-system/sw/share/mime || true
+      fi
+    '';
+
+    # For home-manager integration, still provide user-specific settings
+    home-manager.users.${username} = {
+      # Link to system mimeapps.list if user doesn't have their own
+      xdg.configFile."mimeapps.list" = lib.mkDefault {
+        source = config.environment.etc."xdg/mimeapps.list".source;
+        force = true;
+      };
+
+      # Ensure XDG is enabled
+      xdg.enable = true;
+      xdg.mime.enable = true;
+    };
   };
 }

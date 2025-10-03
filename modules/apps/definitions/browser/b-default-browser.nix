@@ -1,7 +1,7 @@
-{constants, ...}: {
-  "browser" = {
+{config, ...}: {
+  config.rawAppDefinitions."browser" = {
     type = "flatpak";
-    id = constants.defaultWebbrowserFlatpakId;
+    id = config.browserConstants.defaultFlatpakId;
     key = "b";
   };
 }

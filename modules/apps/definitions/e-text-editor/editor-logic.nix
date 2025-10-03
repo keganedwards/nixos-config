@@ -1,66 +1,51 @@
 {
   pkgs,
   config,
-  constants,
   ...
 }: let
+  editorConstants = config.editorConstants;
   editorSettings = import ./editor-config.nix {inherit pkgs;};
-
-  # Get the configured neovim package from programs.nvf
-  # This will be available after nvf builds it
   currentEditorExecutable = "${config.programs.nvf.finalPackage}/bin/nvim";
-
-  customEditorLauncherScript = import ./_launch-editor-with-tabs-script.nix {
-    inherit pkgs;
-    multiplexerSessionName = "main-editor-session";
-    editorCmd = currentEditorExecutable;
-    terminalCmd = constants.terminalBin;
-    editorTerminalSwayAppId = constants.editorAppIdForSway;
-    multiplexerBin = "${pkgs.tmux}/bin/tmux";
-  };
-
-  smartLauncherScriptPkg = import ./_smart-editor-launcher-script.nix {
-    inherit pkgs;
-    defaultEditorLaunchCmd = "${customEditorLauncherScript}/bin/launch-editor-with-tabs";
-  };
-
-  smartLauncherExePath = "${smartLauncherScriptPkg}/bin/smart-editor-launcher";
 in {
-  # Enable and configure nvf
-  programs.nvf = {
-    enable = true;
-    settings = editorSettings;
-  };
-
-  e-text-editor = {
-    type = "nix";
-    id = constants.editorNixPackageName or "neovim";
-    key = "e";
-
-    launchCommand = "exec ${smartLauncherExePath}";
-    appId = constants.editorAppIdForSway;
-    isTerminalApp = true;
-    desktopFile = {
-      generate = true;
-      displayName = "Default Editor (Tabbed)";
-      iconName = constants.editorIconName or "nvim";
-      defaultAssociations = constants.commonTextEditorMimeTypes;
-      isDefaultHandler = true;
-      categories = ["Utility" "TextEditor" "Development"];
+  config = {
+    programs.nvf = {
+      enable = true;
+      settings = editorSettings;
     };
-  };
 
-  environment.systemPackages = [
-    pkgs.tmux
-    pkgs.coreutils
-    pkgs.jq
-    customEditorLauncherScript
-    smartLauncherScriptPkg
-  ];
+    rawAppDefinitions."e-text-editor" = {
+      type = "nix";
+      id = editorConstants.packageName or "neovim";
+      key = "e";
+      appId = editorConstants.appIdForWM;
+      isTerminalApp = true;
+      launchCommand = "exec ${config.terminalConstants.bin} cli spawn -- ${currentEditorExecutable}";
 
-  environment.variables = {
-    EDITOR = smartLauncherExePath;
-    VISUAL = smartLauncherExePath;
-    SUDO_EDITOR = currentEditorExecutable;
+      desktopFile = {
+        generate = true;
+        displayName = "Text Editor";
+        iconName = editorConstants.iconName or "nvim";
+        defaultAssociations = [
+          "text/plain"
+          "text/markdown"
+          "application/json"
+          "application/toml"
+          "application/x-yaml"
+          "text/x-shellscript"
+          "text/x-python"
+          "application/javascript"
+          "text/javascript"
+          "text/x-nix"
+        ];
+        isDefaultHandler = true;
+        categories = ["Utility" "TextEditor" "Development"];
+      };
+    };
+
+    environment.variables = {
+      EDITOR = currentEditorExecutable;
+      VISUAL = currentEditorExecutable;
+      SUDO_EDITOR = currentEditorExecutable;
+    };
   };
 }

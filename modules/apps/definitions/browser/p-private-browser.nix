@@ -1,7 +1,7 @@
-{constants, ...}: {
-  "tor" = {
+{config, ...}: {
+  config.rawAppDefinitions."tor" = {
     type = "flatpak";
-    id = constants.defaultWebbrowserFlatpakId;
+    id = config.browserConstants.defaultFlatpakId;
     key = "p";
     commandArgs = "--tor";
   };

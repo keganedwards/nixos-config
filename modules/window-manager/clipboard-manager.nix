@@ -1,43 +1,30 @@
 {
+  config,
   lib,
   pkgs,
-  flakeConstants,
+  username,
   ...
 }: let
-  clipseExe = lib.getExe pkgs.clipse;
-  clipseSwayAppId = "clipse-${flakeConstants.terminalName}";
-  launchClipseCommand = "${flakeConstants.terminalBin} --app-id=${lib.escapeShellArg clipseSwayAppId} ${clipseExe}";
+  wm = config.windowManagerConstants;
+  terminalConstants = config.terminalConstants;
 
-  # Command to start the clipse listener daemon
+  clipseExe = lib.getExe pkgs.clipse;
+  clipseAppId = "clipse-terminal";
+  launchClipseCommand = "${terminalConstants.bin} --app-id=${lib.escapeShellArg clipseAppId} ${clipseExe}";
   startClipseListener = "${clipseExe} --listen";
 in {
-  # 1. DO NOT enable the service. It runs in the wrong environment.
-  # services.clipse.enable = true; # THIS IS THE PROBLEMATIC LINE
+  home-manager.users.${username} = lib.mkMerge [
+    {
+      home.packages = [pkgs.clipse];
+    }
 
-  # 2. Configure Sway to launch clipse
-  wayland.windowManager.sway = {
-    # Keep this enabled for proper session management
-    systemd.enable = true;
+    (wm.setKeybindings {
+      "mod4+Shift+c" = "exec ${launchClipseCommand}";
+    })
 
-    # Add extraConfig to launch the clipse listener on startup
-    extraConfig = ''
-      # Start the clipse listener daemon when sway starts
+    (wm.setExtraConfig ''
       exec ${startClipseListener}
-
-      # Rule for Clipse UI (running in ${flakeConstants.terminalName} with app_id ${clipseSwayAppId})
-      # to float, cover screen, and center.
-      for_window [app_id="${clipseSwayAppId}"] floating enable, resize set width 100 ppt height 100 ppt, move position center
-    '';
-
-    # Keybinding to launch the Clipse UI
-    config.keybindings = lib.mkMerge [
-      {
-        "mod4+Shift+c" = "exec ${launchClipseCommand}";
-      }
-    ];
-  };
-
-  # 3. Explicitly add clipse to your user packages
-  # Since the service is disabled, Home Manager won't add it automatically.
-  home.packages = [pkgs.clipse];
+      for_window [app_id="${clipseAppId}"] floating enable, resize set width 100 ppt height 100 ppt, move position center
+    '')
+  ];
 }

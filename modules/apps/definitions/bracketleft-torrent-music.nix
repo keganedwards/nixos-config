@@ -1,5 +1,5 @@
 {
-  "torrent-music" = {
+  config.rawAppDefinitions."torrent-music" = {
     type = "flatpak";
     id = "org.nicotine_plus.Nicotine";
     key = "bracketleft";

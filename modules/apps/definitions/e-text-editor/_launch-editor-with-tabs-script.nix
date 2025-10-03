@@ -1,24 +1,27 @@
-# modules/home-manager/apps/definitions/e-text-editor/_launch-editor-with-tabs-script.nix
 {
   pkgs,
-  multiplexerSessionName,
   editorCmd,
-  terminalCmd,
   editorTerminalSwayAppId,
+  config,
   ...
 }: let
-  universalLauncher = import ../t-terminal/universal-tmux-launcher-script.nix {
+  universalLauncher = import ../t-terminal/universal-multiplexer-launcher-script.nix {
+    inherit config;
     inherit pkgs;
     appId = editorTerminalSwayAppId;
-    sessionName = multiplexerSessionName;
-    terminalBin = terminalCmd;
     commandToRun = editorCmd;
-    appType = "editor"; # Specify this is an editor
+    appType = "editor";
   };
 in
   pkgs.writeShellScriptBin "launch-editor-with-tabs" ''
     #!${pkgs.runtimeShell}
 
+    # Handle sudoedit flag
+    if [ "$1" = "--use-sudoedit" ]; then
+      shift
+      exec sudoedit "$@"
+    fi
+
     # Pass all arguments to the universal launcher
-    exec ${universalLauncher}/bin/universal-tmux-launcher-${editorTerminalSwayAppId} "$@"
+    exec ${universalLauncher}/bin/universal-multiplexer-launcher-${editorTerminalSwayAppId} "$@"
   ''

@@ -1,5 +1,4 @@
 {
-  config,
   lib,
   pkgs,
   ...
@@ -10,9 +9,33 @@
     reload = "${pkgs.sway}/bin/swaymsg reload";
     exit = "${pkgs.sway}/bin/swaymsg exit";
 
-    # Configuration path - this is what makes it swappable
+    # Configuration paths for accessing window manager config
     configPath = ["wayland" "windowManager" "sway" "config"];
     extraConfigPath = ["wayland" "windowManager" "sway" "extraConfig"];
+
+    # Helper to set keybindings - returns an attrset that can be merged
+    setKeybinding = key: command:
+      lib.setAttrByPath
+      (windowManager.configPath ++ ["keybindings" key])
+      command;
+
+    # Helper to set multiple keybindings
+    setKeybindings = bindings:
+      lib.setAttrByPath
+      (windowManager.configPath ++ ["keybindings"])
+      bindings;
+
+    # Helper to set extraConfig
+    setExtraConfig = config:
+      lib.setAttrByPath
+      windowManager.extraConfigPath
+      config;
+
+    # Helper to set startup commands
+    setStartup = commands:
+      lib.setAttrByPath
+      (windowManager.configPath ++ ["startup"])
+      commands;
 
     # Window rules and criteria helpers
     window = {
@@ -39,14 +62,6 @@
       ];
       desktopName = "sway";
       socketPath = "$XDG_RUNTIME_DIR/sway-ipc.$UID.$(${pkgs.procps}/bin/pgrep -x sway).sock";
-    };
-
-    # Lock screen
-    lockScreen = {
-      package = pkgs.swaylock;
-      idlePackage = pkgs.swayidle;
-      secureCommand = "sway-lock-secure";
-      blockingCommand = "sway-lock-blocking";
     };
   };
 in {

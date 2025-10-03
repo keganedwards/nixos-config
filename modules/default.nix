@@ -1,6 +1,5 @@
 {username, ...}: {
   imports = [
-    ./window-manager/constants.nix
     ./apps
     ./boot.nix
     ./fonts.nix
@@ -20,6 +19,7 @@
     ./virtualization.nix
     ./window-manager
     ./programs
+    ./screenshot-configuration.nix
     ./scripts
     ./services
     ./systemd
@@ -30,7 +30,6 @@
     imports = [
       ./directories.nix
       ./packages-static.nix
-      ./screenshot-configuration.nix
     ];
   };
 }

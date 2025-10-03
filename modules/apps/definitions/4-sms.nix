@@ -1,5 +1,5 @@
 {pkgs, ...}: {
-  sms = {
+  rawAppDefinitions.sms = {
     type = "externally-managed";
     id = "kdeconnect-sms";
     appId = "org.kde.kdeconnect.sms";

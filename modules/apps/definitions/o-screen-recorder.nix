@@ -1,5 +1,5 @@
 {
-  "screen-recorder" = {
+  config.rawAppDefinitions."screen-recorder" = {
     type = "flatpak";
     id = "com.obsproject.Studio";
     key = "o";

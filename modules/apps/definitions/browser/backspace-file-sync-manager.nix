@@ -1,11 +1,7 @@
-{
-  constants,
-  username,
-  ...
-}: {
-  "file-sync-manager" = {
+{username, ...}: {
+  rawAppDefinitions."file-sync-manager" = {
     type = "pwa";
-    id = constants.syncthingGuiUrl;
+    id = "http://127.0.0.1:8384";
     key = "backspace";
   };
 

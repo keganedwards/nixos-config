@@ -1,12 +1,17 @@
-{flakeConstants, ...}: let
-  # Use flakeConstants instead of importing constants.nix directly
-  constants = flakeConstants;
+{
+  config,
+  pkgs,
+  username,
+  lib,
+  ...
+}: let
+  wm = config.windowManagerConstants;
 
-  slurpBinPath = "${constants.screenshotUtilitySlurp}/bin/slurp";
-  grimBinPath = "${constants.screenshotUtilityGrim}/bin/grim";
-  wlCopyBinPath = "${constants.clipboardUtilityWlClipboard}/bin/wl-copy";
-  dateBinPath = "${constants.generalUtilityCoreutils}/bin/date";
-  mkdirBinPath = "${constants.generalUtilityCoreutils}/bin/mkdir";
+  slurpBinPath = "${pkgs.slurp}/bin/slurp";
+  grimBinPath = "${pkgs.grim}/bin/grim";
+  wlCopyBinPath = "${pkgs.wl-clipboard}/bin/wl-copy";
+  dateBinPath = "${pkgs.coreutils}/bin/date";
+  mkdirBinPath = "${pkgs.coreutils}/bin/mkdir";
 
   screenshotCommandRegionToClipboard = ''
     ${grimBinPath} -g "$(${slurpBinPath})" - | ${wlCopyBinPath}
@@ -17,23 +22,19 @@
     ${grimBinPath} -g "$(${slurpBinPath})" "$HOME/Screenshots/screenshot-$(${dateBinPath} +%Y-%m-%d-%H%M%S).png"
   '';
 in {
-  config = {
-    home.packages = [
-      constants.screenshotUtilitySlurp
-      constants.screenshotUtilityGrim
-      constants.clipboardUtilityWlClipboard
-      constants.generalUtilityCoreutils
-    ];
+  home-manager.users.${username} = lib.mkMerge [
+    {
+      home.packages = [
+        pkgs.slurp
+        pkgs.grim
+        pkgs.wl-clipboard
+        pkgs.coreutils
+      ];
+    }
 
-    # Corrected path for Home Manager Sway configuration
-    wayland.windowManager.sway = {
-      # extraConfig is types.lines and will be merged automatically
-      extraConfig = ''
-        # --- Screenshots (from screenshot.nix module) ---
-        bindsym mod4+Mod1+s   exec ${screenshotCommandRegionToClipboard}
-        # CORRECTED: Changed from Shift+s to 'p' to avoid conflict with suspend
-        bindsym mod4+Mod1+p   exec ${screenshotCommandRegionToFile}
-      '';
-    };
-  };
+    (wm.setKeybindings {
+      "mod4+Mod1+s" = "exec ${screenshotCommandRegionToClipboard}";
+      "mod4+Mod1+p" = "exec ${screenshotCommandRegionToFile}";
+    })
+  ];
 }

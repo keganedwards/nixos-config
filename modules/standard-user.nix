@@ -1,7 +1,7 @@
 {
   username,
   fullName,
-  flakeConstants,
+  stateVersion,
   ...
 }: {
   users.users.${username} = {
@@ -9,5 +9,5 @@
     description = fullName;
     extraGroups = ["keyd" "networkmanager" "wheel" "libvirtd" "video" "keys" "tss"];
   };
-  home-manager.users.${username}.home.stateVersion = flakeConstants.stateVersion;
+  home-manager.users.${username}.home.stateVersion = stateVersion;
 }

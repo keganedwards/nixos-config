@@ -2,7 +2,7 @@
 {
   username,
   fullName,
-  flakeConstants,
+  stateVersion,
   ...
 }: let
   protectedUsername = "protect-${username}";
@@ -22,7 +22,7 @@ in {
 
   home-manager.users.${protectedUsername} = {
     home = {
-      inherit (flakeConstants) stateVersion;
+      inherit stateVersion;
       homeDirectory = "/var/lib/protected-${username}";
     };
   };

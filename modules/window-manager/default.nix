@@ -6,7 +6,7 @@
 
   imports = [
     ./workspaces.nix
-
+    ./clipboard-manager.nix
     ./startup.nix
   ];
 
@@ -18,7 +18,6 @@
       ./hm-keybindings.nix
       ./hm-window-rules.nix
       ./hm-lock-screen.nix
-      ./clipboard-manager.nix
     ];
   };
 }

@@ -1,5 +1,5 @@
 {
-  "system-monitor" = {
+  config.rawAppDefinitions."system-monitor" = {
     type = "nix";
     id = "resources";
 

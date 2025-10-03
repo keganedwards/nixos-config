@@ -5,7 +5,7 @@
 }: let
   dotfilesRoot = "/home/${username}/.dotfiles";
 in {
-  torrent-general = {
+  rawAppDefinitions.torrent-general = {
     type = "flatpak";
     id = "org.qbittorrent.qBittorrent";
     key = "bracketright"; # Based on the filename "bracketright-"

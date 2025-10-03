@@ -1,7 +1,7 @@
-{constants, ...}: {
-  "cloud-storage" = {
+{config, ...}: {
+  config.rawAppDefinitions."cloud-storage" = {
     type = "flatpak";
-    id = constants.defaultWebbrowserFlatpakId;
+    id = config.browserConstants.defaultFlatpakId;
     key = "7";
     commandArgs = ''--new-window "https://drive.proton.me""'';
   };
