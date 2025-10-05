@@ -4,15 +4,9 @@
   ...
 }: let
   editorConstants = config.editorConstants;
-  editorSettings = import ./editor-config.nix {inherit pkgs;};
   currentEditorExecutable = "${config.programs.nvf.finalPackage}/bin/nvim";
 in {
   config = {
-    programs.nvf = {
-      enable = true;
-      settings = editorSettings;
-    };
-
     rawAppDefinitions."e-text-editor" = {
       type = "nix";
       id = editorConstants.packageName or "neovim";
