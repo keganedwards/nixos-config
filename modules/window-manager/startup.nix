@@ -5,25 +5,24 @@
   username,
   ...
 }: let
-  wm = config.windowManagerConstants;
+  wmConstants = config.windowManagerConstants;
   processedApps = config.applications or {};
 
   entries =
     lib.mapAttrsToList (
       _appKey: appConfig:
-        if appConfig.autostart or false && appConfig.launchCommand != null
+        if appConfig.autostart or false
         then {
-          rawCmd = appConfig.launchCommand;
-          priority = appConfig.autostartPriority or 100;
+          rawCmd = appConfig.autostartCommand;
           type = appConfig.type or "unknown";
         }
         else null
     )
     processedApps;
 
-  sorted = lib.sort (a: b: a.priority < b.priority) (lib.filter (e: e != null) entries);
+  validEntries = lib.filter (e: e != null && e.rawCmd != null) entries;
 
-  addDelayToPwas = entries: let
+  addDelayAndSpacing = entries: let
     processEntries = acc: remaining:
       if remaining == []
       then acc.result
@@ -31,6 +30,7 @@
         current = builtins.head remaining;
         rest = builtins.tail remaining;
 
+        # Only PWAs get startup delays
         newAcc =
           if current.type == "pwa"
           then {
@@ -41,9 +41,11 @@
                   command = "sh -c '${pkgs.coreutils}/bin/sleep ${toString acc.pwaDelay} && ${current.rawCmd}'";
                 }
               ];
-            pwaDelay = acc.pwaDelay + 1;
+            pwaDelay = acc.pwaDelay + 1.5;  # Stagger PWAs by 1.5 seconds each
+            lastDelay = acc.lastDelay;
           }
           else {
+            # Non-PWA apps launch immediately
             result =
               acc.result
               ++ [
@@ -52,17 +54,19 @@
                 }
               ];
             pwaDelay = acc.pwaDelay;
+            lastDelay = acc.lastDelay;
           };
       in
         processEntries newAcc rest;
   in
     processEntries {
       result = [];
-      pwaDelay = 7;
+      pwaDelay = 4;  # Start PWAs after 4 seconds, then increment
+      lastDelay = 0;
     }
     entries;
 
-  startupCommands = addDelayToPwas sorted;
+  startupCommands = addDelayAndSpacing validEntries;
 in {
-  home-manager.users.${username} = wm.setStartup startupCommands;
+  home-manager.users.${username} = wmConstants.setStartup startupCommands;
 }

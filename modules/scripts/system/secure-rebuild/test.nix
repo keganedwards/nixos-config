@@ -175,66 +175,20 @@
 
       # Check if there are staged changes to commit
       if ! ${pkgs.git}/bin/git diff --quiet --staged; then
-        # Commit menu
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "  Commit Changes"
+        echo "  Commit message (empty to amend):"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo
-        echo ":: Current commit message:"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        ${pkgs.git}/bin/git log -1 --pretty=format:"%s%n%n%b" HEAD
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo
-        echo ":: Changes have been staged. Choose how to proceed:"
-        echo
-        echo "  (a) Amend the last commit (preserves existing message)"
-        echo "  (c) Create new commit with message"
-        echo "  (m) Amend the last commit with new message"
-        echo "  (q) Quit and restore original state"
-        echo
-        printf "Your choice (a/c/m/q): "
-        IFS= read -r choice
-        echo
-
-        case "$choice" in
-          a|A)
-            # Amend without changing the message
-            ${pkgs.git}/bin/git commit --amend --no-edit --quiet
-            echo ":: Commit amended (message preserved)"
-            ;;
-          c|C)
-            echo ":: Enter commit message:"
-            IFS= read -r commit_msg
-            if [ -n "$commit_msg" ]; then
-              ${pkgs.git}/bin/git commit -m "$commit_msg" --quiet
-            else
-              echo ":: No message entered, using automatic message"
-              ${pkgs.git}/bin/git commit -m "nixos: test build changes" --quiet
-            fi
-            ;;
-          m|M)
-            echo ":: Enter new commit message for amend:"
-            IFS= read -r new_msg
-            if [ -n "$new_msg" ]; then
-              ${pkgs.git}/bin/git commit --amend -m "$new_msg" --no-gpg-sign --quiet
-              echo ":: Commit amended with new message (note: signature removed to avoid re-authentication)"
-              echo ":: You may want to re-sign this commit later with: git commit --amend -S --no-edit"
-            else
-              echo ":: No message entered, keeping original message"
-              ${pkgs.git}/bin/git commit --amend --no-edit --quiet
-            fi
-            ;;
-          q|Q)
-            echo ":: Restoring original state and aborting build..."
-            ${pkgs.git}/bin/git reset --hard "$original_head"
-            echo ":: Original state restored"
-            exit 1
-            ;;
-          *)
-            echo ":: Invalid choice, amending without changing message..."
-            ${pkgs.git}/bin/git commit --amend --no-edit --quiet
-            ;;
-        esac
+        IFS= read -r commit_msg
+        
+        if [ -z "$commit_msg" ]; then
+          # Empty message = amend
+          ${pkgs.git}/bin/git commit --amend --no-edit --quiet
+          echo ":: Amended last commit"
+        else
+          # Non-empty message = new commit
+          ${pkgs.git}/bin/git commit -m "$commit_msg" --quiet
+          echo ":: Created new commit"
+        fi
 
         TARGET_COMMIT=$(${pkgs.git}/bin/git rev-parse HEAD)
       else
@@ -246,7 +200,7 @@
       if [ "$TARGET_COMMIT" != "$original_head" ]; then
         if command -v ${config.terminalConstants.name} >/dev/null && [ -n "''${WAYLAND_DISPLAY:-}" ]; then
           # Simple diff viewing without complex signaling
-          setsid -f ${config.terminalConstants.bin} --app-id=nixos-diff --title="NixOS Diff Review" \
+          setsid -f ${config.terminalConstants.launchWithAppId "nixos-diff"} -- --title="NixOS Diff Review" \
             ${pkgs.bash}/bin/bash -c "
               cd '${flakeDir}'
               echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'

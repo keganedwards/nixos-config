@@ -1,4 +1,31 @@
-{pkgs, ...}: {
+{
+  pkgs,
+  self,
+  ...
+}: let
+  secretsSourceDir = "${self}/secrets";
+in {
+  # Vopono sops secrets for the default root configuration directory
+  sops.secrets = {
+    "protonvpn_auth" = {
+      sopsFile = "${secretsSourceDir}/auth.txt.enc";
+      format = "binary";
+      owner = "root";
+      group = "root";
+      mode = "0600";
+      path = "/root/.config/vopono/proton/openvpn/auth.txt";
+    };
+
+    "protonvpn_config" = {
+      sopsFile = "${secretsSourceDir}/united_states-us-free.ovpn.enc";
+      format = "binary";
+      owner = "root";
+      group = "root";
+      mode = "0640";
+      path = "/root/.config/vono/proton/openvpn/united_states-us-free.ovpn";
+    };
+  };
+
   # Vopono daemon service with proper cleanup
   systemd.services.vopono = {
     description = "Vopono root daemon";
@@ -50,6 +77,7 @@
         echo "Cleanup complete"
       '';
 
+      # The daemon will automatically use /root/.config/vopono when run as root
       ExecStart = "${pkgs.vopono}/bin/vopono daemon";
 
       # Cleanup on stop
@@ -136,6 +164,7 @@
       RETRY_COUNT=0
 
       while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+        # The exec command will use the configuration loaded by the root daemon
         if ${pkgs.vopono}/bin/vopono exec \
           --provider protonvpn \
           --server us \

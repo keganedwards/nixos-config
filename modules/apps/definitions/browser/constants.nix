@@ -3,7 +3,7 @@
     type = lib.types.attrs;
     default = {
       defaultFlatpakId = "com.brave.Browser";
-      defaultWmClass = "Brave-browser";
+      defaultWmClass = "brave-browser";
       pwaRunnerFlatpakId = "com.brave.Browser";
       pwaRunnerWmClass = "Brave-browser";
     };

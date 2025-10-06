@@ -6,11 +6,16 @@
   ...
 }: let
   wm = config.windowManagerConstants;
-  terminalConstants = config.terminalConstants;
+  terminal = config.terminalConstants;
 
   clipseExe = lib.getExe pkgs.clipse;
   clipseAppId = "clipse-terminal";
-  launchClipseCommand = "${terminalConstants.bin} --app-id=${lib.escapeShellArg clipseAppId} ${clipseExe}";
+  
+  launchClipseCommand = 
+    if terminal.supportsCustomAppId
+    then "${terminal.launchWithAppId clipseAppId} ${clipseExe}"
+    else "${terminal.defaultLaunchCmd} ${clipseExe}";
+    
   startClipseListener = "${clipseExe} --listen";
 in {
   home-manager.users.${username} = lib.mkMerge [

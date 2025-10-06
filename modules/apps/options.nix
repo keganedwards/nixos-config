@@ -17,7 +17,7 @@
           };
 
           type = lib.mkOption {
-            type = lib.types.enum ["nix" "flatpak" "pwa" "externally-managed" "custom"];
+            type = lib.types.enum ["nix" "flatpak" "pwa" "web-page" "blank" "externally-managed" "custom"];
             default = "externally-managed";
             description = "Application type.";
           };
@@ -28,6 +28,23 @@
             description = "Keybinding hint.";
           };
 
+          autostartCommand = lib.mkOption {
+            type = lib.types.str;
+            description = "Command to use for autostart (defaults to launchCommand).";
+          };
+
+          workspaceName = lib.mkOption {
+            type = lib.types.nullOr lib.types.str;
+            default = null;
+            description = "Workspace name for window manager assignment.";
+          };
+
+          ignoreWindowAssignment = lib.mkOption {
+            type = lib.types.bool;
+            default = false;
+            description = "If true, don't create automatic window assignments or rules for this app.";
+          };
+
           autostart = lib.mkOption {
             type = lib.types.bool;
             default = false;
@@ -35,12 +52,14 @@
           };
 
           launchCommand = lib.mkOption {
-            type = lib.types.str;
+            type = lib.types.nullOr lib.types.str;
+            default = null;
             description = "Launch command.";
           };
 
           appId = lib.mkOption {
-            type = lib.types.oneOf [lib.types.str lib.types.listOf lib.types.str];
+            type = lib.types.nullOr (lib.types.oneOf [lib.types.str (lib.types.listOf lib.types.str)]);
+            default = null;
             description = "Application ID for window management.";
           };
 
@@ -63,7 +82,8 @@
                 };
 
                 appId = lib.mkOption {
-                  type = lib.types.oneOf [lib.types.str lib.types.listOf lib.types.str];
+                  type = lib.types.nullOr (lib.types.oneOf [lib.types.str (lib.types.listOf lib.types.str)]);
+                  default = null;
                   description = "Application ID.";
                 };
 

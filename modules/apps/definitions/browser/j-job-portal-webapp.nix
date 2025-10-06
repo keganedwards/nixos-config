@@ -1,9 +1,8 @@
-{config, ...}: {
+{
   config.rawAppDefinitions."job" = {
-    type = "flatpak";
-
-    id = config.browserConstants.defaultFlatpakId;
+    type = "web-page";
+url = 
+                        "https://app.dataannotation.tech/workers/projects";
     key = "j";
-    commandArgs = "--new-window https://app.dataannotation.tech/workers/projects";
   };
 }

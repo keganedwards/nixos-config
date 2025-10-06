@@ -1,17 +1,24 @@
 {
-  programs.fish.functions = {
+  programs.fish.functions = let
+    # Define a common list of directories to exclude for the 'fd' command.
+    # This list is then converted into a string of --exclude arguments.
+    fdExcludeArgs = builtins.concatStringsSep " " (map (dir: "--exclude \"${dir}\"") [
+      ".cache"
+      ".nix-profile"
+      ".local/state"
+      ".nix-defexpr"
+      ".git"
+      "node_modules"
+      "__pycache__"
+      ".local/share/Trash" # Corrected capitalization
+      ".local/share/Steam"  # Corrected path and capitalization
+    ]);
+  in
+  {
     # Custom file widget function
     fzf_file_widget_corrected = ''
       set -l file (fd . "$HOME" --type f --hidden \
-        --exclude ".cache" \
-        --exclude ".nix-profile" \
-        --exclude ".local/state" \
-        --exclude ".nix-defexpr" \
-        --exclude ".git" \
-        --exclude "node_modules" \
-        --exclude "__pycache__" \
-        --exclude ".steam" \
-        --exclude ".local/share/trash" \
+        ${fdExcludeArgs} \
         | fzf --ansi \
           --prompt "File> " \
           --header "CTRL-T: Select a file" \
@@ -28,15 +35,7 @@
         begin
           zoxide query -l 2>/dev/null
           fd . "$HOME" --type d --hidden \
-            --exclude ".cache" \
-            --exclude ".nix-profile" \
-            --exclude ".local/state" \
-            --exclude ".nix-defexpr" \
-            --exclude ".git" \
-            --exclude "node_modules" \
-            --exclude "__pycache__" \
-            --exclude ".steam" \
-            --exclude ".local/share/trash"
+            ${fdExcludeArgs}
         end | awk '!seen[$0]++' | fzf --ansi \
           --prompt "Dir (zoxide first)> " \
           --header "ALT-C: Select a directory (zoxide results first)" \
@@ -54,15 +53,7 @@
     # Custom directory insert function
     fzf_insert_dir_corrected = ''
       set -l dir (fd . "$HOME" --type d --hidden \
-        --exclude ".cache" \
-        --exclude ".nix-profile" \
-        --exclude ".local/state" \
-        --exclude ".nix-defexpr" \
-        --exclude ".git" \
-        --exclude "node_modules" \
-        --exclude "__pycache__" \
-        --exclude ".steam" \
-        --exclude ".local/share/trash" \
+        ${fdExcludeArgs} \
         | fzf --ansi \
           --prompt "Dir> " \
           --header "ALT-D: Select a directory to insert" \

@@ -1,8 +1,7 @@
-{config, ...}: {
+{
   config.rawAppDefinitions."version-control" = {
-    id = config.browserConstants.defaultFlatpakId;
-    type = "flatpak";
+ type = "web-page";
     key = "h";
-    commandArgs = ''--new-window "https://github.com"'';
+                url = "https://github.com";
   };
 }

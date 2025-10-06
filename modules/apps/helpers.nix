@@ -36,6 +36,55 @@
         targetDesktopFilename = null;
       };
 
+      mkWebPageApp = args: let
+        browser = config.browserConstants;
+        url = args.url or args.id or "";
+        appIdFromArgs = args.appId or browser.defaultWmClass;
+        userLaunchCommand = args.launchCommand or null;
+        userCommandArgs = args.commandArgs or "";
+        
+        noProto = lib.removePrefix "https://" (lib.removePrefix "http://" url);
+        host = builtins.elemAt (lib.splitString "/" noProto) 0;
+        derivedDisplayName = "Web: ${host}";
+
+        appInfo = {
+          name = derivedDisplayName;
+          appId = appIdFromArgs;
+          installMethod = "none";
+          package = "browser-webpage";
+          title = null;
+          isTerminalApp = false;
+        };
+
+        # Always add --new-window for web-page type, plus any user command args
+        allCommandArgs = lib.trim ("--new-window " + userCommandArgs);
+
+        defaultLaunchCommand = "exec ${pkgs.flatpak}/bin/flatpak run ${browser.defaultFlatpakId} ${allCommandArgs} ${lib.escapeShellArg url}";
+      in {
+        inherit appInfo;
+        launchCommand =
+          if userLaunchCommand != null
+          then userLaunchCommand
+          else defaultLaunchCommand;
+        desktopFile = lib.recursiveUpdate (mkDefaultDesktopFileAttrs appInfo) (args.desktopFile or {});
+      };
+
+      mkBlankWorkspace = args: let
+        workspaceName = args.workspaceName or args.key or "blank";
+        appInfo = {
+          name = "Blank Workspace ${workspaceName}";
+          appId = null;
+          installMethod = "none";
+          package = "blank-workspace";
+          title = null;
+          isTerminalApp = false;
+        };
+      in {
+        inherit appInfo;
+        launchCommand = null;
+        desktopFile = mkDefaultDesktopFileAttrs appInfo;
+      };
+
       mkApp = args: let
         terminal = config.terminalConstants;
         mediaPlayer = config.mediaPlayerConstants;
@@ -80,6 +129,10 @@
           else name;
 
         baseAppId = sanitize name "unknown-app";
+        
+        # Determine if we need a custom app ID for terminal apps
+        needsCustomTerminalAppId = isTerminalApp && appIdFromArgs != null;
+        
         appId =
           if appIdFromArgs != null
           then appIdFromArgs
@@ -90,7 +143,11 @@
         defaultLaunchCommand =
           if isTerminalApp
           then let
-            fullCmd = "${lib.escapeShellArg terminal.bin} --app-id=${lib.escapeShellArg appId} ${lib.escapeShellArg executableToRun} ${finalCommandArgs} \"$@\"";
+            termCmd = 
+              if needsCustomTerminalAppId && terminal.supportsCustomAppId
+              then terminal.launchWithAppId appId
+              else terminal.defaultLaunchCmd;
+            fullCmd = "${termCmd} ${lib.escapeShellArg executableToRun} ${finalCommandArgs} \"$@\"";
           in "exec sh -c '${fullCmd} &'"
           else if name == "mpv" && userLaunchCommand == null && mediaPlayer.bin != null
           then "exec ${mediaPlayer.bin}" + lib.optionalString (finalCommandArgs != "") " ${finalCommandArgs}"

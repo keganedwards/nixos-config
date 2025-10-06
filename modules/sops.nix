@@ -35,24 +35,6 @@ in {
         mode = "0600";
         path = "${userHome}/.ssh/id_ed25519";
       };
-
-      "protonvpn_auth" = {
-        sopsFile = "${secretsSourceDir}/auth.txt.enc";
-        format = "binary";
-        owner = "${username}";
-        group = "users";
-        mode = "0600";
-        path = "${userHome}/.config/vopono/proton/openvpn/auth.txt";
-      };
-
-      "protonvpn_config" = {
-        sopsFile = "${secretsSourceDir}/united_states-us-free.ovpn.enc";
-        format = "binary";
-        owner = "${username}";
-        group = "users";
-        mode = "0640";
-        path = "${userHome}/.config/vopono/proton/openvpn/united_states-us-free.ovpn";
-      };
     };
   };
 }

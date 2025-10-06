@@ -1,7 +1,7 @@
 {config, ...}: {
   config.rawAppDefinitions."bank" = {
-    id = config.browserConstants.defaultFlatpakId;
-    key = "k";
-    commandArgs = "--new-window https://digital.fidelity.com/prgw/digital/login/full-page";
-  };
+ type = "web-page";
+                key = "k";
+  url = "https://digital.fidelity.com/prgw/digital/login/full-page";
+        };
 }

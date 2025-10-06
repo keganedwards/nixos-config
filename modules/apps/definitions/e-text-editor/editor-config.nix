@@ -1,11 +1,15 @@
 {pkgs, ...}: {
+  environment.systemPackages = [
+    pkgs.statix
+    pkgs.deadnix
+  ];
   programs.nvf = {
     enable = true;
     settings = {
       vim = {
-    luaConfigPre = ''
-      vim.deprecate = function() end
-    '';
+        luaConfigPre = ''
+          vim.deprecate = function() end
+        '';
 
         maps = {
           normal."<C-t>" = {
@@ -18,9 +22,9 @@
         spellcheck.enable = true;
         globals.mapleader = "\\";
         clipboard = {
-enable = true;
-registers = "unnamedplus";
-                                };
+          enable = true;
+          registers = "unnamedplus";
+        };
         debugger.nvim-dap = {
           enable = true;
           ui.enable = true;

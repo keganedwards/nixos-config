@@ -82,7 +82,8 @@ in {
       bat
       nix-index
       starship
-      ripgrep
+nix-your-shell
+                        ripgrep
       pay-respects
     ];
   };

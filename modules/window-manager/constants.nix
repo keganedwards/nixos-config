@@ -4,6 +4,8 @@
   ...
 }: let
   windowManager = {
+    name = "sway";
+    
     # Core commands
     msg = "${pkgs.sway}/bin/swaymsg";
     reload = "${pkgs.sway}/bin/swaymsg reload";

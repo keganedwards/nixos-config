@@ -2,7 +2,7 @@
   rawAppDefinitions.terminal = {
     type = "nix";
     id = config.terminalConstants.name;
-    appId = "terminal";
+    appId = config.terminalConstants.defaultAppId;
     key = "t";
   };
 }

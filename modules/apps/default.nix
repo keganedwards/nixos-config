@@ -22,9 +22,22 @@
         (rawConf.launchScript.args // {inherit pkgs;})
       else null;
 
+    # Check for blank workspace
+    isBlankWorkspace = 
+      (rawConf.id or null) == null && 
+      (rawConf.appId or null) == null && 
+      (rawConf.title or null) == null &&
+      (rawConf.url or null) == null &&
+      (rawConf.launchCommand or null) == null &&
+      (rawConf.key != null);
+
     autoDetectedType =
-      if rawConf ? "type" && rawConf.type != null
+      if isBlankWorkspace
+      then "blank"
+      else if rawConf ? "type" && rawConf.type != null
       then rawConf.type
+      else if rawConf ? "url" || (lib.hasPrefix "http" (rawConf.id or ""))
+      then "web-page"
       else let
         idToCheck = rawConf.id or appKey;
         periodCount = lib.length (lib.filter (c: c == ".") (lib.stringToCharacters idToCheck));
@@ -36,12 +49,17 @@
     appType = autoDetectedType;
 
     primaryId =
-      rawConf.id
-      or (
-        if rawConf ? "appId"
-        then rawConf.appId
-        else appKey
-      );
+      if isBlankWorkspace
+      then "blank-${appKey}"
+      else if appType == "web-page"
+      then rawConf.url or rawConf.id or ""
+      else
+        rawConf.id
+        or (
+          if rawConf ? "appId"
+          then rawConf.appId
+          else appKey
+        );
 
     helperArgs =
       {
@@ -49,10 +67,15 @@
         _isExplicitlyExternal = appType == "externally-managed";
         _wantsNixInstall = appType == "nix";
       }
-      // rawConf;
+      // rawConf
+      // (if appType == "web-page" && rawConf ? "url" then {url = rawConf.url;} else {});
 
     helperResult =
-      if appType == "flatpak"
+      if appType == "blank"
+      then helpers.mkBlankWorkspace helperArgs
+      else if appType == "web-page"
+      then helpers.mkWebPageApp helperArgs
+      else if appType == "flatpak"
       then helpers.mkFlatpakApp helperArgs
       else if appType == "pwa"
       then helpers.mkWebbrowserPwaApp helperArgs
@@ -92,6 +115,9 @@
       type = appType;
       key = rawConf.key or null;
       autostart = rawConf.autostart or false;
+      autostartCommand = rawConf.autostartCommand or finalResult.launchCommand or "";
+      workspaceName = rawConf.workspaceName or rawConf.swayWorkspace or (rawConf.key or null);
+      ignoreWindowAssignment = rawConf.ignoreWindowAssignment or false;
       inherit (finalResult) launchCommand;
       inherit (finalResult.appInfo) appId;
     })
