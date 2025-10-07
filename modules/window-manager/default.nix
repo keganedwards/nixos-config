@@ -1,23 +1,21 @@
-{username, ...}: {
-  programs.sway = {
-    enable = true;
-    extraPackages = [];
-  };
+{username, pkgs, ...}: {
+  # Enable niri at system level - the flake will handle the package
+  programs.niri = {
+                enable = true;
+                package = pkgs.niri;
+        };
 
   imports = [
     ./workspaces.nix
-    ./clipboard-manager.nix
     ./startup.nix
   ];
 
   home-manager.users.${username} = {
     imports = [
-      ./hm-environment.nix
-      ./hm-appearance.nix
-      ./hm-input.nix
-      ./hm-keybindings.nix
-      ./hm-window-rules.nix
-      ./hm-lock-screen.nix
+./layout.nix
+                        ./environment.nix
+      ./input.nix
+      ./keybindings.nix
     ];
   };
 }

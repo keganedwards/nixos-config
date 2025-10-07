@@ -1,9 +1,13 @@
+# This file now just exports pure functions/values, not NixOS modules
 {
-  imports = [
-    ../modules/window-manager/constants.nix
-    ../modules/apps/definitions/t-terminal/constants.nix
-    ../modules/apps/definitions/e-text-editor/constants.nix
-    ../modules/apps/definitions/media-player/constants.nix
-    ../modules/apps/definitions/browser/constants.nix
-  ];
+  pkgs,
+  lib,
+  username,
+  ...
+}: {
+  windowManager = import ./window-manager.nix { inherit pkgs lib; } username;
+  terminal = import ./terminal.nix { inherit pkgs; };
+  editor = import ./editor.nix { };
+  mediaPlayer = import ./media-player.nix { inherit pkgs; };
+  browser = import ./browser.nix { };
 }

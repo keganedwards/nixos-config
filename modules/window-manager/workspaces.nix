@@ -3,31 +3,41 @@
   lib,
   pkgs,
   username,
+  windowManagerConstants,  
   ...
 }: let
-  wmConstants = config.windowManagerConstants;
-  terminalConstants = config.terminalConstants;
+  wmConstants = windowManagerConstants;
   processedApps = config.applications or {};
+  
+  # Get all workspace names we'll create and sort them alphabetically
+  allWorkspaceNames = lib.unique (lib.filter (name: name != null) 
+    (lib.mapAttrsToList (_: appConfig: appConfig.workspaceName or appConfig.key or null) processedApps));
+  sortedWorkspaceNames = lib.sort (a: b: a < b) allWorkspaceNames;
+  
+  # Create a mapping of workspace name to its ID (1-indexed to match niri output)
+  workspaceNameToId = lib.listToAttrs (lib.imap1 (idx: name: {
+    name = name;
+    value = idx;
+  }) sortedWorkspaceNames);
 
-  # Create a workspace navigation script that launches apps if not present
-  mkWorkspaceScript = workspace: appConfig: let
+  # Create workspace navigation script for niri with NAMED workspaces
+  mkWorkspaceScript = workspaceName: appConfig: let
     launchCmd = appConfig.launchCommand or null;
-    
-    # Handle blank workspace case - no launch command at all
     isBlankWorkspace = launchCmd == null;
+    workspaceId = workspaceNameToId.${workspaceName} or 999;
     
     scriptContent = 
       if isBlankWorkspace 
       then ''
         #!${pkgs.runtimeShell}
-        ${wmConstants.msg} workspace "${workspace}"
+        ${wmConstants.ipc.focusWorkspace workspaceName}
       ''
       else ''
         #!${pkgs.runtimeShell}
         set -e
         
         # Switch to target workspace first
-        ${wmConstants.msg} workspace "${workspace}"
+        ${wmConstants.ipc.focusWorkspace workspaceName}
         
         # Check for Alt key modifier (env var set by keybinding)
         if [ "$FORCE_LAUNCH" = "1" ]; then
@@ -35,31 +45,26 @@
           exit 0
         fi
         
-        # Check if ANY window exists in this workspace (check both nodes and floating_nodes)
-        window_count=$(${wmConstants.msg} -t get_tree | ${pkgs.jq}/bin/jq -r --arg workspace "${workspace}" '
-          recurse(.nodes[]?, .floating_nodes[]?) |
-          select(.type == "workspace" and .name == $workspace) |
-          [recurse(.nodes[]?, .floating_nodes[]?) | select(.type == "con" and .name != null)] |
-          length')
+        # Check if workspace has any windows using pre-calculated ID
+        has_windows=$(${wmConstants.ipc.workspaceHasWindows "${toString workspaceId}"})
         
-        # If no windows exist in workspace, launch the app
-        if [ "$window_count" = "0" ] || [ -z "$window_count" ]; then
+        # If no windows exist on workspace, launch the app
+        if [ "$has_windows" = "false" ]; then
           ${launchCmd}
         fi
-        # If window exists, we've already switched to the workspace, nothing more to do
       '';
-  in pkgs.writeScriptBin "goto-workspace-${lib.strings.sanitizeDerivationName workspace}" scriptContent;
+  in pkgs.writeScriptBin "goto-workspace-${lib.strings.sanitizeDerivationName workspaceName}" scriptContent;
 
   generatedWMConfigsPerApp =
     lib.mapAttrsToList (
       appKeyFromConfig: appConfig: let
-        bindingKey = appConfig.key or appKeyFromConfig;
+        bindingKey = appConfig.key or null;
+        # Use the key as the workspace name directly
         workspaceName = appConfig.workspaceName or bindingKey;
         appIdCriteria = appConfig.appId or null;
         launchCmd = appConfig.launchCommand or null;
         ignoreWindowAssignment = appConfig.ignoreWindowAssignment or false;
         
-        # Check if this is a blank workspace
         isBlankWorkspace = launchCmd == null;
         
         workspaceScript = 
@@ -68,30 +73,18 @@
           else null;
 
         keybindingsForThisApp =
-          if workspaceScript != null
+          if workspaceScript != null && bindingKey != null
           then {
-            "Scroll_Lock+${bindingKey}" = "exec ${workspaceScript}/bin/${workspaceScript.name}";
-            "Scroll_Lock+Alt+${bindingKey}" = "exec FORCE_LAUNCH=1 ${workspaceScript}/bin/${workspaceScript.name}";
-            "Scroll_Lock+Shift+${bindingKey}" = "move container to workspace ${workspaceName}";
+            # Normal press: focus workspace and launch if empty
+            "ISO_Level5_Shift+${bindingKey}".action.spawn = ["${workspaceScript}/bin/${workspaceScript.name}"];
+            # Alt+key: force launch app
+            "ISO_Level5_Shift+Alt+${bindingKey}".action.spawn = ["sh" "-c" "FORCE_LAUNCH=1 ${workspaceScript}/bin/${workspaceScript.name}"];
+            # Shift+key: move current window to workspace
+            "ISO_Level5_Shift+Shift+${bindingKey}".action.move-window-to-workspace = workspaceName;
           }
           else {};
 
-        # Don't create assignments for blank workspaces, web-pages, or apps with ignoreWindowAssignment
-        assignmentsForThisApp =
-          if !isBlankWorkspace && !ignoreWindowAssignment && appIdCriteria != null && workspaceName != null && appConfig.type != "web-page"
-          then let
-            appIdList =
-              if lib.isList appIdCriteria
-              then appIdCriteria
-              else [appIdCriteria];
-            criteriaList = lib.map (idString: wmConstants.window.criteriaByAppId idString) appIdList;
-          in
-            if criteriaList != []
-            then {"${workspaceName}" = criteriaList;}
-            else {}
-          else {};
-
-        # Don't create window rules for blank workspaces, web-pages, or apps with ignoreWindowAssignment
+        # Window rules tell niri where to place windows when they launch
         windowRulesForThisApp =
           if !isBlankWorkspace && !ignoreWindowAssignment && appIdCriteria != null && workspaceName != null && appConfig.type != "web-page"
           then let
@@ -102,8 +95,8 @@
           in
             lib.flatten (lib.map (idString: [
                 {
-                  command = "move container to workspace ${workspaceName}";
-                  criteria = wmConstants.window.criteriaByAppId idString;
+                  matches = [{app-id = "^${lib.escapeRegex idString}$";}];
+                  open-on-workspace = workspaceName;
                 }
               ])
               appIdList)
@@ -113,36 +106,33 @@
           if workspaceScript != null
           then [workspaceScript]
           else [];
+          
+        workspaceNameForAllocation = 
+          if workspaceName != null 
+          then workspaceName 
+          else null;
       in {
         keybindings = keybindingsForThisApp;
-        assignments = assignmentsForThisApp;
         windowRules = windowRulesForThisApp;
         scripts = scriptsForThisApp;
+        workspaceName = workspaceNameForAllocation;
       }
     )
     processedApps;
 
   allKeybindings = lib.foldl lib.recursiveUpdate {} (map (cfg: cfg.keybindings or {}) generatedWMConfigsPerApp);
-  allAssigns = lib.foldl (
-    acc: currentEntryAssignments:
-      lib.foldl (
-        innerAcc: workspace:
-          if lib.hasAttr workspace innerAcc
-          then innerAcc // {${workspace} = innerAcc.${workspace} ++ currentEntryAssignments.${workspace};}
-          else innerAcc // {${workspace} = currentEntryAssignments.${workspace};}
-      )
-      acc (lib.attrNames currentEntryAssignments)
-  ) {} (map (cfg: cfg.assignments or {}) generatedWMConfigsPerApp);
   allWindowRules = lib.flatten (map (cfg: cfg.windowRules or []) generatedWMConfigsPerApp);
   allScripts = lib.flatten (map (cfg: cfg.scripts or []) generatedWMConfigsPerApp);
-in {
-  environment.systemPackages = allScripts;
+
+in lib.mkMerge [
+  {
+    environment.systemPackages = allScripts ++ [pkgs.ripgrep];
+  }
   
-  home-manager.users.${username} = lib.setAttrByPath wmConstants.configPath {
-    keybindings = lib.mkMerge [
-      allKeybindings
-    ];
-    assigns = allAssigns;
-    window.commands = allWindowRules;
-  };
-}
+  (wmConstants.setSettings {
+    binds = allKeybindings;
+    window-rules = allWindowRules;
+    # Dynamically create named workspaces
+    workspaces = lib.genAttrs sortedWorkspaceNames (_name: {});
+  })
+]

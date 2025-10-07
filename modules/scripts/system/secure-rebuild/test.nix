@@ -2,8 +2,8 @@
   pkgs,
   username,
   flakeDir,
-  config,
-  ...
+terminalConstants,  
+...
 }: let
   definitionsDir = "${flakeDir}/modules/home-manager/apps/definitions";
 
@@ -198,9 +198,9 @@
 
       # Spawn diff window if possible and there were actual changes
       if [ "$TARGET_COMMIT" != "$original_head" ]; then
-        if command -v ${config.terminalConstants.name} >/dev/null && [ -n "''${WAYLAND_DISPLAY:-}" ]; then
+        if command -v ${terminalConstants.name} >/dev/null && [ -n "''${WAYLAND_DISPLAY:-}" ]; then
           # Simple diff viewing without complex signaling
-          setsid -f ${config.terminalConstants.launchWithAppId "nixos-diff"} -- --title="NixOS Diff Review" \
+          setsid -f ${terminalConstants.launchWithAppId "nixos-diff"} -- --title="NixOS Diff Review" \
             ${pkgs.bash}/bin/bash -c "
               cd '${flakeDir}'
               echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'

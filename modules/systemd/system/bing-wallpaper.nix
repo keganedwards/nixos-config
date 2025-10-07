@@ -3,26 +3,24 @@
   config,
   username,
   lib,
+  windowManagerConstants,
   ...
 }: let
-  wm = config.windowManagerConstants;
-
-  wallpaperDir = "${config.home-manager.users.${username}.xdg.dataHome}/wallpapers/Bing";
+  hmConfig = config.home-manager.users.${username};
+  wallpaperDir = "${hmConfig.xdg.dataHome}/wallpapers/Bing";
   wallpaperPath = "${wallpaperDir}/desktop.jpg";
   lockscreenPath = "${wallpaperDir}/lockscreen.jpg";
+  wmConstants = windowManagerConstants;
 
-  # Define the script that fetches the wallpaper
-  bingWallpaperScript = pkgs.writeShellApplication {
-    name = "bing-wallpaper-hm";
+  # Script that only downloads/updates the wallpaper
+  bingWallpaperDownloadScript = pkgs.writeShellApplication {
+    name = "bing-wallpaper-download";
     runtimeInputs = with pkgs; [
       coreutils
       bash
       jq
       curl
       imagemagick
-      wm.session.desktopName
-      gnugrep
-      findutils
     ];
     text = ''
       #!/usr/bin/env bash
@@ -35,17 +33,16 @@
       mkdir -p "$TARGET_DIR"
 
       get_monitor_resolution() {
-        if [ -z "''${SWAYSOCK:-}" ]; then echo "Error: SWAYSOCK not set" >&2; return 1; fi
-        timeout 10s ${wm.ipc.getTree} | \
-          jq -r '[.[] | select(.active == true) | .current_mode.width, .current_mode.height] | select(length==2) | "\(.[0])x\(.[1])"' | head -n 1
+        timeout 10s ${wmConstants.ipc.getOutputs} | \
+          jq -r 'to_entries | .[0] | .value.current_mode | "\(.width)x\(.height)"' 2>/dev/null || echo ""
       }
 
-      echo "=== Bing Wallpaper Start ($(date)) ==="
+      echo "=== Bing Wallpaper Download Start ($(date)) ==="
       echo "Target: $TARGET_DIR"
 
       should_download=false
       if [ ! -f "$WALLPAPER_PATH" ]; then
-          echo "Wallpaper missing or directory is empty. Downloading."
+          echo "Wallpaper missing. Downloading."
           should_download=true
       else
           file_date=$(date -r "$WALLPAPER_PATH" +%Y-%m-%d)
@@ -55,11 +52,12 @@
               should_download=true
           else
               echo "Wallpaper is already up-to-date."
+              exit 0
           fi
       fi
 
       if [ "$should_download" = true ]; then
-          monitor_resolution=$(get_monitor_resolution) || { echo "Error: Resolution failed" >&2; exit 1; }
+          monitor_resolution=$(get_monitor_resolution)
           if [ -z "$monitor_resolution" ]; then
             echo "Warn: No resolution detected, using 1920x1080" >&2
             monitor_resolution="1920x1080"
@@ -90,50 +88,56 @@
           if ! timeout 60s magick "$WALLPAPER_PATH" -filter Gaussian -blur 0x8 -level 10%,90%,0.5 "$LOCKSCREEN_PATH"; then
               echo "Warn: Lockscreen generation failed" >&2
           fi
-          echo "Download & process complete."
+          echo "Download complete. Wallpaper updated."
       fi
 
-      if [ -f "$WALLPAPER_PATH" ]; then
-         echo "Setting wallpaper for live session via window manager..."
-         if ! timeout 10s ${wm.msg} "output * bg \"$WALLPAPER_PATH\" fill"; then
-            echo "Warn: Window manager command failed. Is it running?" >&2
-         else
-            echo "Live wallpaper set."
-         fi
-      else
-         echo "Error: Final wallpaper '$WALLPAPER_PATH' not found. Cannot set." >&2
-         exit 1
-      fi
-
-      echo "=== Bing Wallpaper End ($(date)) ==="
+      echo "=== Bing Wallpaper Download End ($(date)) ==="
       exit 0
     '';
   };
-in {
-  home-manager.users.${username} = lib.mkMerge [
-    {
-      systemd.user.services.bing-wallpaper = {
+in lib.mkMerge [
+  {
+    home-manager.users.${username} = {
+      home.packages = [pkgs.swaybg];
+      
+      # Persistent swaybg service
+      systemd.user.services.swaybg = {
         Unit = {
-          Description = "Bing Wallpaper Fetcher/Setter";
-          After = ["graphical-session.target" "network-online.target" "time-sync.target"];
+          Description = "Wallpaper daemon (swaybg)";
+          After = ["graphical-session.target"];
+          PartOf = ["graphical-session.target"];
+        };
+        Service = {
+          Type = "simple";
+          ExecStart = "${pkgs.swaybg}/bin/swaybg -i ${wallpaperPath} -m fill";
+          Restart = "on-failure";
+          PassEnvironment = wmConstants.session.envVars;
+        };
+        Install = {
+          WantedBy = ["graphical-session.target"];
+        };
+      };
+      
+      # Download service (oneshot, restarts swaybg after download)
+      systemd.user.services.bing-wallpaper-download = {
+        Unit = {
+          Description = "Bing Wallpaper Download";
+          After = ["network-online.target" "swaybg.service"];
           Wants = ["network-online.target"];
         };
         Service = {
           Type = "oneshot";
-          ExecStart = "${bingWallpaperScript}/bin/bing-wallpaper-hm";
-          PassEnvironment =
-            wm.session.envVars
-            ++ [
-              "XDG_RUNTIME_DIR"
-              "DBUS_SESSION_BUS_ADDRESS"
-              "HOME"
-            ];
+          ExecStart = "${bingWallpaperDownloadScript}/bin/bing-wallpaper-download";
+          # Restart swaybg after downloading to show new wallpaper
+          ExecStartPost = "${pkgs.systemd}/bin/systemctl --user restart swaybg.service";
+          PassEnvironment = wmConstants.session.envVars ++ ["XDG_RUNTIME_DIR" "HOME"];
         };
       };
 
-      systemd.user.timers.bing-wallpaper = {
+      # Timer for daily downloads
+      systemd.user.timers.bing-wallpaper-download = {
         Unit = {
-          Description = "Run Bing Wallpaper Service Daily";
+          Description = "Daily Bing Wallpaper Download";
         };
         Timer = {
           OnCalendar = "daily";
@@ -144,12 +148,25 @@ in {
           WantedBy = ["timers.target"];
         };
       };
-    }
-
-    (wm.setStartup [
-      {
-        command = "${wm.msg} 'output * bg ${config.home-manager.users.${username}.home.homeDirectory}/.local/share/wallpapers/Bing/desktop.jpg fill'";
-      }
-    ])
-  ];
-}
+      
+      # Download wallpaper on login (after a delay to ensure network is ready)
+      systemd.user.services.bing-wallpaper-on-login = {
+        Unit = {
+          Description = "Download Bing Wallpaper on Login";
+          After = ["graphical-session.target" "network-online.target" "swaybg.service"];
+          Wants = ["network-online.target"];
+        };
+        Service = {
+          Type = "oneshot";
+          ExecStartPre = "${pkgs.coreutils}/bin/sleep 5";
+          ExecStart = "${bingWallpaperDownloadScript}/bin/bing-wallpaper-download";
+          ExecStartPost = "${pkgs.systemd}/bin/systemctl --user restart swaybg.service";
+          PassEnvironment = wmConstants.session.envVars ++ ["XDG_RUNTIME_DIR" "HOME"];
+        };
+        Install = {
+          WantedBy = ["graphical-session.target"];
+        };
+      };
+    };
+  }
+]

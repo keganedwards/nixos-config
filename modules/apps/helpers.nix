@@ -1,8 +1,10 @@
 {
   lib,
   pkgs,
-  config,
-  ...
+browserConstants,
+terminalConstants,
+mediaPlayerConstants,
+...
 }: {
   options.appHelpers = lib.mkOption {
     type = lib.types.attrs;
@@ -37,7 +39,7 @@
       };
 
       mkWebPageApp = args: let
-        browser = config.browserConstants;
+        browser = browserConstants;
         url = args.url or args.id or "";
         appIdFromArgs = args.appId or browser.defaultWmClass;
         userLaunchCommand = args.launchCommand or null;
@@ -86,8 +88,8 @@
       };
 
       mkApp = args: let
-        terminal = config.terminalConstants;
-        mediaPlayer = config.mediaPlayerConstants;
+        terminal = terminalConstants;
+        mediaPlayer = mediaPlayerConstants;
 
         name = args.id;
         isTerminalApp = args.isTerminalApp or false;
@@ -209,7 +211,7 @@
       };
 
       mkWebbrowserPwaApp = args: let
-        browser = config.browserConstants;
+        browser = browserConstants;
         url = args.id or args.url or "";
         appIdFromArgs = args.appId or null;
         userLaunchCommand = args.launchCommand or null;

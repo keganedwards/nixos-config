@@ -1,8 +1,8 @@
-{config, ...}: {
+{browserConstants, ...}: {
   config.rawAppDefinitions."browser" = {
     type = "flatpak";
-    id = config.browserConstants.defaultFlatpakId;
-    appId = config.browserConstants.defaultWmClass;
+    id = browserConstants.defaultFlatpakId;
+    appId = browserConstants.defaultWmClass;
     key = "b";
     ignoreWindowAssignment = true;  # This prevents automatic workspace assignment
   };

@@ -7,6 +7,10 @@
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    niri = {
+      url = "github:sodiboo/niri-flake";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     nix-flatpak = {
       url = "github:gmodena/nix-flatpak?ref=latest";
     };
@@ -46,6 +50,7 @@
     pre-commit-hooks,
     nixos-hardware,
     nix-index-database,
+    niri,
   }: let
     stateVersion = "23.11";
 
@@ -69,17 +74,35 @@
       };
     };
 
+    # Generate constants for a given system and username
+    makeConstants = system: username: let
+      pkgs = nixpkgs.legacyPackages.${system};
+      lib = nixpkgs.lib;
+      allConstants = import ./constants {
+        inherit pkgs lib username;
+      };
+    in allConstants;
+
     hostArgs = {
       system,
       hostname,
       username,
       fullName,
       email,
-    }: {
+    }: let
+      constants = makeConstants system username;
+    in {
       inherit inputs;
-      inherit self nixpkgs home-manager sops-nix nix-flatpak catppuccin nvf system hostname nixos-hardware;
+      inherit self nixpkgs home-manager niri sops-nix nix-flatpak catppuccin nvf system hostname nixos-hardware;
       inherit username fullName email stateVersion;
       flakeDir = "/home/${username}/nixos-config";
+      
+      # Pass all constants through specialArgs
+      windowManagerConstants = constants.windowManager;
+      terminalConstants = constants.terminal;
+      editorConstants = constants.editor;
+      mediaPlayerConstants = constants.mediaPlayer;
+      browserConstants = constants.browser;
     };
 
     nixosConfigurations =
@@ -109,10 +132,13 @@
               nix-index-database.nixosModules.nix-index
               {programs.nix-index-database.comma.enable = true;}
               nvf.nixosModules.default
-              ./constants
+              niri.nixosModules.niri
+              # Don't import ./constants anymore - it's handled via specialArgs
               ./modules
               hostParams.path
-              {home-manager.extraSpecialArgs = argsBase;}
+              {
+                home-manager.extraSpecialArgs = argsBase;
+              }
             ];
           }
       )

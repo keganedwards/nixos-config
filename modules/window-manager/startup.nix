@@ -3,9 +3,9 @@
   lib,
   pkgs,
   username,
+  windowManagerConstants,
   ...
 }: let
-  wmConstants = config.windowManagerConstants;
   processedApps = config.applications or {};
 
   entries =
@@ -37,9 +37,7 @@
             result =
               acc.result
               ++ [
-                {
-                  command = "sh -c '${pkgs.coreutils}/bin/sleep ${toString acc.pwaDelay} && ${current.rawCmd}'";
-                }
+                "sh -c '${pkgs.coreutils}/bin/sleep ${toString acc.pwaDelay} && ${current.rawCmd}'"
               ];
             pwaDelay = acc.pwaDelay + 1.5;  # Stagger PWAs by 1.5 seconds each
             lastDelay = acc.lastDelay;
@@ -49,9 +47,7 @@
             result =
               acc.result
               ++ [
-                {
-                  command = current.rawCmd;
-                }
+                current.rawCmd
               ];
             pwaDelay = acc.pwaDelay;
             lastDelay = acc.lastDelay;
@@ -67,6 +63,6 @@
     entries;
 
   startupCommands = addDelayAndSpacing validEntries;
-in {
-  home-manager.users.${username} = wmConstants.setStartup startupCommands;
-}
+in
+  # setStartup already wraps in home-manager.users.${username}
+  windowManagerConstants.setStartup startupCommands

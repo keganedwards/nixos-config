@@ -1,14 +1,14 @@
-{config, ...}: {
+{mediaPlayerConstants, ...}: {
   config.rawAppDefinitions."music-player" = {
-    id = config.mediaPlayerConstants.appId;
+    id = mediaPlayerConstants.appId;
     key = "m";
 
     launchCommand = let
       playerTitle = "music-player";
       playerArgs = "--title=${playerTitle} --no-terminal --force-window=immediate --save-position-on-quit --audio-display=no --keep-open=yes --player-operation-mode=pseudo-gui --loop-playlist=inf";
-    in "exec ${config.mediaPlayerConstants.bin} ${playerArgs} --idle=yes";
+    in "exec ${mediaPlayerConstants.bin} ${playerArgs} --idle=yes";
 
-    appId = config.mediaPlayerConstants.appId;
+    appId = mediaPlayerConstants.appId;
 
     desktopFile = {
       generate = true;

@@ -16,13 +16,12 @@
         -- Hide tab bar with single tab
         config.hide_tab_bar_if_only_one_tab = true
 
-        -- Tab bar settings
-        config.use_fancy_tab_bar = false
-        config.tab_bar_at_bottom = true
-
-        -- Font configuration
-        config.font_size = 11.0
-
+        -- DISABLE SSH AGENT - this is the fix
+        config.mux_enable_ssh_agent = false
+        
+        -- Also disable multiplexing server to prevent any background persistence
+        config.unix_domains = {}
+        
         return config
       '';
     };

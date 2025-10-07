@@ -26,9 +26,7 @@ in {
     '')
   ];
 
-  home-manager.users.${username} = lib.setAttrByPath wmConstants.configPath {
-    keybindings."Mod1+Shift+escape" = "exec ${wmExitWithBraveKill}";
-  };
+  home-manager.users.${username} = wmConstants.setKeybinding "Alt+Shift+Escape" "${wmExitWithBraveKill}";
 
   home-manager.users.${username}.home.packages = [
     (pkgs.writeShellScriptBin "wm-exit-safe" ''

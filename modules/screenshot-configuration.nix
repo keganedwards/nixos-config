@@ -1,12 +1,10 @@
 {
-  config,
   pkgs,
   username,
   lib,
+  windowManagerConstants,
   ...
 }: let
-  wm = config.windowManagerConstants;
-
   slurpBinPath = "${pkgs.slurp}/bin/slurp";
   grimBinPath = "${pkgs.grim}/bin/grim";
   wlCopyBinPath = "${pkgs.wl-clipboard}/bin/wl-copy";
@@ -22,19 +20,13 @@
     ${grimBinPath} -g "$(${slurpBinPath})" "$HOME/Screenshots/screenshot-$(${dateBinPath} +%Y-%m-%d-%H%M%S).png"
   '';
 in {
-  home-manager.users.${username} = lib.mkMerge [
-    {
-      home.packages = [
-        pkgs.slurp
-        pkgs.grim
-        pkgs.wl-clipboard
-        pkgs.coreutils
-      ];
-    }
-
-    (wm.setKeybindings {
-      "mod4+Mod1+s" = "exec ${screenshotCommandRegionToClipboard}";
-      "mod4+Mod1+p" = "exec ${screenshotCommandRegionToFile}";
-    })
+  environment.systemPackages = [
+    pkgs.slurp
+    pkgs.grim
+    pkgs.wl-clipboard
+    pkgs.coreutils
   ];
+} // windowManagerConstants.setKeybindings {
+  "Mod+Alt+S" = screenshotCommandRegionToClipboard;
+  "Mod+Alt+P" = screenshotCommandRegionToFile;
 }

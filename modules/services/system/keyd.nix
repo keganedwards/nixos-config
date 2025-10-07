@@ -4,10 +4,9 @@
     keyboards.default = {
       ids = ["*"];
       settings = {
-        # [main] section - REMAINS UNCHANGED
+        # [main] section - caps lock now handled by niri's xkb config
         main = {
-          capslock = "scrolllock";
-          scrolllock = "void";
+          # Removed capslock remapping - let niri handle it as ISO_Level5_Shift
         };
 
         # Define bindings within keyd's default 'meta' layer.

@@ -1,24 +1,24 @@
 {
-  pkgs,
   config,
-  ...
+editorConstants,  
+terminalConstants,
+...
 }: let
-  editorConstants = config.editorConstants;
   currentEditorExecutable = "${config.programs.nvf.finalPackage}/bin/nvim";
 in {
   config = {
     rawAppDefinitions."e-text-editor" = {
       type = "nix";
-      id = editorConstants.packageName or "neovim";
+      id = editorConstants.packageName;
       key = "e";
       appId = editorConstants.appIdForWM;
       isTerminalApp = true;
-      launchCommand = "exec ${config.terminalConstants.bin} cli spawn -- ${currentEditorExecutable}";
+      launchCommand = "exec ${terminalConstants.bin} cli spawn -- ${currentEditorExecutable}";
 
       desktopFile = {
         generate = true;
         displayName = "Text Editor";
-        iconName = editorConstants.iconName or "nvim";
+        iconName = editorConstants.iconName;
         defaultAssociations = [
           "text/plain"
           "text/markdown"

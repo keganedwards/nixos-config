@@ -1,8 +1,8 @@
-{config, ...}: {
+{terminalConstants, ...}: {
   rawAppDefinitions.terminal = {
     type = "nix";
-    id = config.terminalConstants.name;
-    appId = config.terminalConstants.defaultAppId;
+    id = terminalConstants.name;
+    appId = terminalConstants.defaultAppId;
     key = "t";
   };
 }

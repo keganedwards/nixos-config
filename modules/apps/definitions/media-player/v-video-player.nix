@@ -1,13 +1,13 @@
-{config, ...}: {
+{mediaPlayerConstants, ...}: {
   config.rawAppDefinitions."video-player" = {
-    id = config.mediaPlayerConstants.appId;
+    id = mediaPlayerConstants.appId;
     key = "v";
     launchCommand = let
       playerTitle = "video-player";
       playerArgs = "--title=${playerTitle} --player-operation-mode=pseudo-gui --save-position-on-quit --keep-open=yes";
-    in "exec ${config.mediaPlayerConstants.bin} ${playerArgs} --idle=yes";
+    in "exec ${mediaPlayerConstants.bin} ${playerArgs} --idle=yes";
 
-    appId = config.mediaPlayerConstants.appId;
+    appId = mediaPlayerConstants.appId;
 
     desktopFile = {
       generate = true;
