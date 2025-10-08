@@ -1,7 +1,7 @@
 {
   config.rawAppDefinitions."background-streams" = {
     type = "web-page";
-    url = "brave-twitch.tv__app-Default";
+    url = "https://www.twitch.tv/directory/all?sort=VIEWER_COUNT";
     key = "9";
   };
 }
