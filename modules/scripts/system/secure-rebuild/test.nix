@@ -3,11 +3,9 @@
   username,
   flakeDir,
   terminalConstants,
+  terminalShellConstants,
   ...
 }: let
-  definitionsDir = "${flakeDir}/modules/home-manager/apps/definitions";
-
-  # Define the implementation script that runs WITH sudo
   nixos-test-build = pkgs.writeShellScriptBin "nixos-test-build" ''
     #!${pkgs.bash}/bin/bash
     set -euo pipefail
@@ -27,28 +25,18 @@
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo
 
-    # Run the build and capture result
     /run/current-system/sw/bin/secure-rebuild "$TARGET_COMMIT" test --ask
     BUILD_RESULT=$?
 
-    # Post-build actions only on success
     if [ $BUILD_RESULT -eq 0 ]; then
       echo
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       echo "  Post-build actions..."
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-      # Reload sway if running
-      if pgrep -x sway >/dev/null 2>&1; then
-        echo -n "  Reloading Sway configuration... "
-        runuser -u ${username} -- swaymsg reload >/dev/null 2>&1 || true
-        echo "done"
-      fi
-
-      # Source fish config if available
-      if command -v fish >/dev/null 2>&1; then
-        echo -n "  Sourcing Fish configuration... "
-        runuser -u ${username} -- fish -c "source ~/.config/fish/config.fish" >/dev/null 2>&1 || true
+      if command -v ${terminalShellConstants.name} >/dev/null 2>&1; then
+        echo -n "  Reloading ${terminalShellConstants.name} configuration... "
+        runuser -u ${username} -- ${terminalShellConstants.reloadCommand} >/dev/null 2>&1 || true
         echo "done"
       fi
 
@@ -56,56 +44,15 @@
       echo
     fi
 
-    # Explicitly exit with the build result
     exit $BUILD_RESULT
   '';
 
-  # Main script that runs WITHOUT sudo initially
   nixos-test-wrapper = pkgs.writeShellScriptBin "nt" ''
     #!${pkgs.bash}/bin/bash
     set -euo pipefail
 
     cd "${flakeDir}"
 
-    validate_flatpaks() {
-      added_files="$1"
-
-      if [ -z "$added_files" ] || [ ! -d "${definitionsDir}" ]; then
-        return 0
-      fi
-
-      echo ":: Validating Flatpak IDs in new/modified files..."
-
-      while IFS= read -r file; do
-        # Skip if file is not in definitions directory
-        if [[ ! "$file" =~ ^modules/home-manager/apps/definitions/ ]]; then
-          continue
-        fi
-
-        # Check if it's a flatpak definition
-        if ! ${pkgs.ripgrep}/bin/rg -q 'type\s*=\s*"flatpak"' "$file" 2>/dev/null; then
-          continue
-        fi
-
-        id=$(${pkgs.ripgrep}/bin/rg -o 'id\s*=\s*"([^"]+)"' -r '$1' "$file" || true)
-        [ -n "$id" ] || continue
-
-        json=$(${pkgs.curl}/bin/curl -sfL "https://flathub.org/api/v1/apps/$id") || {
-          echo "❌ Flatpak not found: $id (in $file)" >&2
-          return 1
-        }
-
-        canon=$(echo "$json" | ${pkgs.jq}/bin/jq -r .flatpakAppId)
-        if [ "$id" != "$canon" ]; then
-          echo "❌ Flatpak ID mismatch in $file: '$id' should be '$canon'" >&2
-          return 1
-        fi
-      done <<< "$added_files"
-
-      echo "✅ All Flatpak IDs are valid."
-    }
-
-    # --- Parse Arguments ---
     force_rebuild=0
 
     while [[ $# -gt 0 ]]; do
@@ -126,22 +73,12 @@
       esac
     done
 
-    # --- Handle force rebuild case (no review required) ---
     if [ "$force_rebuild" -eq 1 ]; then
       TARGET_COMMIT=$(${pkgs.git}/bin/git rev-parse HEAD)
       echo "✅ Force flag detected. Proceeding with rebuild."
       echo ":: Building from commit: ''${TARGET_COMMIT:0:7}"
-
-      # Get files changed in the last commit for validation
-      added_files=$(${pkgs.git}/bin/git diff-tree --no-commit-id --name-only -r HEAD | ${pkgs.ripgrep}/bin/rg '\.nix$' || true)
-
-      if ! validate_flatpaks "$added_files"; then
-        exit 1
-      fi
-
       echo ":: Authenticating for NixOS test build..."
 
-      # Run build directly and handle result
       if exec sudo ${nixos-test-build}/bin/nixos-test-build "$TARGET_COMMIT"; then
         ${pkgs.libnotify}/bin/notify-send -u normal -a "NixOS Test" "✅ Test build successful!"
         exit 0
@@ -151,29 +88,13 @@
       fi
     fi
 
-    # --- Check for uncommitted changes ---
     if ! ${pkgs.git}/bin/git diff --quiet HEAD || [ -n "$(${pkgs.git}/bin/git ls-files --others --exclude-standard)" ]; then
       echo ":: Uncommitted changes detected."
 
       original_head=$(${pkgs.git}/bin/git rev-parse HEAD)
 
-      # Collect all changed .nix files (unstaged, staged, untracked)
-      added_files=$(
-        {
-          ${pkgs.git}/bin/git diff --name-only HEAD || true
-          ${pkgs.git}/bin/git diff --name-only --staged || true
-          ${pkgs.git}/bin/git ls-files --others --exclude-standard || true
-        } | ${pkgs.ripgrep}/bin/rg '\.nix$' || true
-      )
-
-      if ! validate_flatpaks "$added_files"; then
-        exit 1
-      fi
-
-      # Stage all changes
       ${pkgs.git}/bin/git add .
 
-      # Check if there are staged changes to commit
       if ! ${pkgs.git}/bin/git diff --quiet --staged; then
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo "  Commit message (empty to amend):"
@@ -181,11 +102,9 @@
         IFS= read -r commit_msg
 
         if [ -z "$commit_msg" ]; then
-          # Empty message = amend
           ${pkgs.git}/bin/git commit --amend --no-edit --quiet
           echo ":: Amended last commit"
         else
-          # Non-empty message = new commit
           ${pkgs.git}/bin/git commit -m "$commit_msg" --quiet
           echo ":: Created new commit"
         fi
@@ -196,11 +115,9 @@
         TARGET_COMMIT="$original_head"
       fi
 
-      # Spawn diff window if possible and there were actual changes
       if [ "$TARGET_COMMIT" != "$original_head" ]; then
         if command -v ${terminalConstants.name} >/dev/null && [ -n "''${WAYLAND_DISPLAY:-}" ]; then
-          # Simple diff viewing without complex signaling
-          setsid -f ${terminalConstants.launchWithAppId "nixos-diff"} -- --title="NixOS Diff Review" \
+          setsid -f ${terminalConstants.bin} start --class nixos-diff \
             ${pkgs.bash}/bin/bash -c "
               cd '${flakeDir}'
               echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
@@ -225,15 +142,12 @@
         fi
       fi
 
-      # Start build in this window
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       echo ":: Starting NixOS test build for commit: ''${TARGET_COMMIT:0:7}"
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       echo
 
-      # Use exec to replace the current shell with sudo
       exec sudo ${nixos-test-build}/bin/nixos-test-build "$TARGET_COMMIT"
-      # Notification will be sent by wrapper on exit
 
     else
       echo "✅ Repository is clean. No changes to test."
@@ -242,7 +156,6 @@
     fi
   '';
 
-  # Create a simple wrapper to handle notifications after the main script exits
   nt-wrapper = pkgs.writeShellScriptBin "nt" ''
     #!${pkgs.bash}/bin/bash
     ${nixos-test-wrapper}/bin/nt "$@"
@@ -254,6 +167,152 @@
     fi
     exit $RESULT
   '';
+
+  secure-rebuild = pkgs.writeShellScriptBin "secure-rebuild" ''
+    #!${pkgs.bash}/bin/bash
+    set -e
+
+    if [ "$EUID" -ne 0 ]; then
+      echo "Error: This script must be run as root"
+      echo "Usage: sudo secure-rebuild <commit-hash> <action> [additional-args...]"
+      exit 1
+    fi
+
+    TARGET_COMMIT="''${1:-}"
+    if [ -z "$TARGET_COMMIT" ]; then
+      echo "Error: No commit hash provided"
+      exit 1
+    fi
+    shift
+
+    ACTION="''${1:-}"
+    if [ -z "$ACTION" ]; then
+      echo "Error: No rebuild action provided (test, switch, boot, etc.)"
+      exit 1
+    fi
+    shift
+
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  Performing comprehensive commit verification..."
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    cd "${flakeDir}"
+
+    CURRENT_COMMIT=""
+    if [ -f /run/current-system/nixos-version ]; then
+      CURRENT_COMMIT=$(${pkgs.ripgrep}/bin/rg -oP '[a-f0-9]{40}' /run/current-system/nixos-version | head -1 || echo "")
+    fi
+
+    if [ -z "$CURRENT_COMMIT" ]; then
+      echo "⚠ Cannot determine current system commit, finding last verified commit..."
+      COMMITS=$(runuser -u ${username} -- ${pkgs.git}/bin/git rev-list HEAD --reverse)
+      LAST_VERIFIED=""
+      for commit in $COMMITS; do
+        if runuser -u ${username} -- ${pkgs.git}/bin/git verify-commit "$commit" 2>/dev/null; then
+          LAST_VERIFIED="$commit"
+        else
+          break
+        fi
+      done
+      if [ -z "$LAST_VERIFIED" ]; then
+        echo "❌ SECURITY ERROR: No verified commits found in history!"
+        exit 1
+      fi
+      CURRENT_COMMIT="$LAST_VERIFIED"
+      echo "  Using last verified commit as baseline: ''${CURRENT_COMMIT:0:7}"
+    else
+      echo "  Current system commit: ''${CURRENT_COMMIT:0:7}"
+    fi
+
+    echo ""
+    echo "  Verifying all commits from ''${CURRENT_COMMIT:0:7} to ''${TARGET_COMMIT:0:7}..."
+    echo ""
+    COMMITS_TO_VERIFY=$(runuser -u ${username} -- ${pkgs.git}/bin/git rev-list --reverse "$CURRENT_COMMIT..$TARGET_COMMIT")
+    if ! echo "$COMMITS_TO_VERIFY" | ${pkgs.ripgrep}/bin/rg -q "$TARGET_COMMIT"; then
+      COMMITS_TO_VERIFY=$(echo -e "''${COMMITS_TO_VERIFY}\n$TARGET_COMMIT" | ${pkgs.ripgrep}/bin/rg -v '^$')
+    fi
+    VERIFIED_COUNT=0
+    FAILED_COMMITS=()
+    for commit in $COMMITS_TO_VERIFY; do
+      COMMIT_SHORT="''${commit:0:7}"
+      COMMIT_SUBJECT=$(runuser -u ${username} -- ${pkgs.git}/bin/git log --format=%s -n 1 "$commit")
+      COMMIT_AUTHOR=$(runuser -u ${username} -- ${pkgs.git}/bin/git log --format="%an <%ae>" -n 1 "$commit")
+      echo -n "  Checking $COMMIT_SHORT: $COMMIT_SUBJECT (by $COMMIT_AUTHOR)... "
+      if runuser -u ${username} -- ${pkgs.git}/bin/git verify-commit "$commit" 2>/dev/null; then
+        echo "✅"
+        VERIFIED_COUNT=$((VERIFIED_COUNT + 1))
+      else
+        echo "❌ UNSIGNED"
+        FAILED_COMMITS+=("$commit|$COMMIT_SUBJECT|$COMMIT_AUTHOR")
+      fi
+    done
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    if [ ''${#FAILED_COMMITS[@]} -gt 0 ]; then
+      echo "❌ SECURITY ERROR: Found ''${#FAILED_COMMITS[@]} unsigned/unverified commit(s)!"
+      echo ""
+      echo "The following commits failed verification:"
+      for failed in "''${FAILED_COMMITS[@]}"; do
+        IFS='|' read -r hash subject author <<< "$failed"
+        echo "  • ''${hash:0:7}: $subject (by $author)"
+      done
+      echo ""
+      echo "This could indicate:"
+      echo "  1. Commits made without proper signing"
+      echo "  2. Commits signed with an untrusted key"
+      echo "  3. Potential tampering or unauthorized changes"
+      echo ""
+      echo "❌ BUILD ABORTED FOR SECURITY REASONS"
+      exit 1
+    fi
+    echo "✅ Successfully verified $VERIFIED_COUNT commit(s)"
+    echo "  All commits in range are properly signed and trusted"
+    echo ""
+    FLAKE_URI="git+file://${flakeDir}?rev=$TARGET_COMMIT"
+    HOSTNAME="''${HOSTNAME:-$(hostname)}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  Secure NixOS Rebuild (using nh)"
+    echo "  Commit Range: ''${CURRENT_COMMIT:0:7}..''${TARGET_COMMIT:0:7}"
+    echo "  Action: $ACTION"
+    echo "  Host: $HOSTNAME"
+    echo "  Flake: $FLAKE_URI"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo
+
+    NH_FLAGS=(-v)
+    NIX_FLAGS=()
+    for arg in "$@"; do
+      case "$arg" in
+        --ask|-a|--dry|-n|--no-nom|--update|-u|--no-specialisation|-S)
+          NH_FLAGS+=("$arg")
+          ;;
+        --verbose|-v)
+          ;;
+        --update-input|-U|--hostname|-H|--specialisation|-s|--out-link|-o|--target-host|--build-host)
+          NH_FLAGS+=("$arg")
+          if [[ $# -gt 0 ]]; then
+            shift
+            NH_FLAGS+=("$1")
+          fi
+          ;;
+        *)
+          NIX_FLAGS+=("$arg")
+          ;;
+      esac
+    done
+
+    if [ ''${#NIX_FLAGS[@]} -gt 0 ]; then
+      ${pkgs.nh}/bin/nh os "$ACTION" "$FLAKE_URI" -H "$HOSTNAME" -R "''${NH_FLAGS[@]}" -- "''${NIX_FLAGS[@]}"
+    else
+      ${pkgs.nh}/bin/nh os "$ACTION" "$FLAKE_URI" -H "$HOSTNAME" -R "''${NH_FLAGS[@]}"
+    fi
+
+    echo
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  ✅ Secure rebuild completed successfully"
+    echo "  Verified and built from commit: ''${TARGET_COMMIT:0:7}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  '';
 in {
   programs.nh = {
     enable = true;
@@ -262,6 +321,8 @@ in {
   environment.systemPackages = with pkgs; [
     nixos-test-build
     nt-wrapper
+    secure-rebuild
+    ripgrep
   ];
 
   security.sudo-rs.extraRules = [

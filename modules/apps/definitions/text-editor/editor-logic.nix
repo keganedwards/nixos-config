@@ -8,10 +8,9 @@
 in {
   config = {
     rawAppDefinitions."e-text-editor" = {
+      key = "5";
       type = "nix";
       id = editorConstants.packageName;
-      key = "e";
-      appId = editorConstants.appIdForWM;
       isTerminalApp = true;
       launchCommand = "exec ${terminalConstants.bin} cli spawn -- ${currentEditorExecutable}";
 

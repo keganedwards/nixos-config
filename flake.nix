@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-parts.url = "github:hercules-ci/flake-parts";
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -39,147 +40,14 @@
     };
   };
 
-  outputs = inputs @ {
-    self,
-    nixpkgs,
-    home-manager,
-    sops-nix,
-    nix-flatpak,
-    catppuccin,
-    nvf,
-    pre-commit-hooks,
-    nixos-hardware,
-    nix-index-database,
-    niri,
-  }: let
-    stateVersion = "23.11";
+  outputs = inputs @ {flake-parts, ...}:
+    flake-parts.lib.mkFlake {inherit inputs;} {
+      imports = [
+        ./flake/nixos-configurations.nix
+        ./flake/devshell.nix
+        ./flake/pre-commit.nix
+      ];
 
-    allUsers = {
-      keganedwards = {
-        fullName = "Kegan Riley Edwards";
-        email = "keganedwards@proton.me";
-      };
+      systems = ["x86_64-linux" "aarch64-linux"];
     };
-
-    hosts = {
-      desktop = {
-        system = "x86_64-linux";
-        username = "keganedwards";
-        path = ./hosts/desktop;
-      };
-      laptop = {
-        system = "x86_64-linux";
-        username = "keganedwards";
-        path = ./hosts/laptop;
-      };
-    };
-
-    makeConstants = system: username: let
-      pkgs = nixpkgs.legacyPackages.${system};
-      inherit (nixpkgs) lib;
-      allConstants = import ./constants {
-        inherit pkgs lib username;
-      };
-    in
-      allConstants;
-
-    hostArgs = {
-      system,
-      hostname,
-      username,
-      fullName,
-      email,
-    }: let
-      constants = makeConstants system username;
-    in {
-      inherit inputs;
-      inherit (inputs) self nixpkgs home-manager niri sops-nix nix-flatpak catppuccin nvf nixos-hardware;
-      inherit system hostname username fullName email stateVersion;
-      flakeDir = "/home/${username}/nixos-config";
-
-      windowManagerConstants = constants.windowManager;
-      terminalConstants = constants.terminal;
-      editorConstants = constants.editor;
-      mediaPlayerConstants = constants.mediaPlayer;
-      browserConstants = constants.browser;
-    };
-
-    nixosConfigurations =
-      nixpkgs.lib.mapAttrs (
-        hostname: hostParams: let
-          hostUsername = hostParams.username;
-          userDetails = allUsers.${hostUsername};
-          argsBase = hostArgs {
-            inherit (hostParams) system;
-            inherit hostname;
-            username = hostUsername;
-            inherit (userDetails) fullName email;
-          };
-        in
-          nixpkgs.lib.nixosSystem {
-            inherit (hostParams) system;
-            specialArgs = argsBase;
-            modules = [
-              {
-                system.stateVersion = stateVersion;
-                networking.hostName = hostname;
-              }
-              argsBase.home-manager.nixosModules.home-manager
-              argsBase.sops-nix.nixosModules.sops
-              argsBase.catppuccin.nixosModules.catppuccin
-              nix-index-database.nixosModules.nix-index
-              {programs.nix-index-database.comma.enable = true;}
-              nvf.nixosModules.default
-              niri.nixosModules.niri
-              ./modules
-              hostParams.path
-              {
-                home-manager.extraSpecialArgs = argsBase;
-              }
-            ];
-          }
-      )
-      hosts;
-
-    supportedSystems = ["x86_64-linux" "aarch64-linux"];
-    forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
-  in {
-    inherit nixosConfigurations;
-
-    checks = forAllSystems (system: {
-      pre-commit-check = pre-commit-hooks.lib.${system}.run {
-        src = ./.;
-        hooks = {
-          # Swapped ripsecrets for trufflehog
-          trufflehog.enable = true;
-          detect-private-keys.enable = true;
-          check-added-large-files.enable = true;
-          check-case-conflicts.enable = true;
-          check-merge-conflicts.enable = true;
-          check-symlinks.enable = true;
-          forbid-new-submodules.enable = true;
-          alejandra.enable = true;
-          typos.enable = true; 
-          statix = {
-            enable = true;
-            settings.ignore = [
-              "**/hardware-configuration.nix"
-            ];
-          };
-          deadnix = {
-            enable = true;
-            settings.edit = true;
-          };
-          flake-checker.enable = true;
-        };
-      };
-    });
-
-    devShells = forAllSystems (system: {
-      default = nixpkgs.legacyPackages.${system}.mkShell {
-        inherit (self.checks.${system}.pre-commit-check) shellHook;
-        buildInputs = self.checks.${system}.pre-commit-check.enabledPackages;
-      };
-    });
-  };
 }

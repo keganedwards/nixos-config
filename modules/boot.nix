@@ -8,8 +8,8 @@
     luksPartitions = lib.mkOption {
       type = lib.types.attrsOf (lib.types.submodule {
         options = {
-          luksName = lib.mkOption { type = lib.types.str; };
-          devicePath = lib.mkOption { type = lib.types.str; };
+          luksName = lib.mkOption {type = lib.types.str;};
+          devicePath = lib.mkOption {type = lib.types.str;};
           allowDiscards = lib.mkOption {
             type = lib.types.bool;
             default = true;
@@ -65,8 +65,8 @@
         efi.canTouchEfiVariables = true;
       };
       initrd = {
-        systemd = { enable = true; };
-        availableKernelModules = [ "tpm_crb" "tpm_tis" ];
+        systemd = {enable = true;};
+        availableKernelModules = ["tpm_crb" "tpm_tis"];
         luks.devices =
           lib.mapAttrs'
           (
@@ -74,7 +74,7 @@
               lib.nameValuePair partitionCfg.luksName {
                 device = partitionCfg.devicePath;
                 inherit (partitionCfg) allowDiscards;
-                crypttabExtraOpts = [ "tpm2-device=auto" "tpm2-pcrs=0+7" "tries=1" ];
+                crypttabExtraOpts = ["tpm2-device=auto" "tpm2-pcrs=0+7" "tries=1"];
               }
           )
           config.custom.boot.luksPartitions;
@@ -91,7 +91,7 @@
       Environment = "SYSTEMD_CRYPTSETUP_USE_TOKEN_MODULE=tpm2";
     };
 
-    services.xserver.videoDrivers = [ "modesetting" ];
+    services.xserver.videoDrivers = ["modesetting"];
 
     hardware.graphics = {
       enable = true;
