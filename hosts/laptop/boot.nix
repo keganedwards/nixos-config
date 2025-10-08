@@ -1,4 +1,3 @@
-# /hosts/laptop/boot.nix
 let
   laptopRootLuksName = "luks-8257f608-7967-4c4d-94f2-e416110d9188";
   laptopRootLuksDevicePath = "/dev/disk/by-uuid/8257f608-7967-4c4d-94f2-e416110d9188";
