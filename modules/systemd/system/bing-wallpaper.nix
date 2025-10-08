@@ -2,7 +2,6 @@
   pkgs,
   config,
   username,
-  lib,
   windowManagerConstants,
   ...
 }: let
@@ -95,78 +94,84 @@
       exit 0
     '';
   };
-in lib.mkMerge [
-  {
-    home-manager.users.${username} = {
-      home.packages = [pkgs.swaybg];
-      
-      # Persistent swaybg service
-      systemd.user.services.swaybg = {
-        Unit = {
-          Description = "Wallpaper daemon (swaybg)";
-          After = ["graphical-session.target"];
-          PartOf = ["graphical-session.target"];
+in {
+  # Note: The lib.mkMerge wrapper is removed as it's no longer needed
+  home-manager.users.${username} = {
+    home.packages = [pkgs.swaybg];
+
+    # All systemd units are now grouped under a single 'systemd' attribute
+    systemd.user = {
+      services = {
+        # Persistent swaybg service
+        swaybg = {
+          Unit = {
+            Description = "Wallpaper daemon (swaybg)";
+            After = ["graphical-session.target"];
+            PartOf = ["graphical-session.target"];
+          };
+          Service = {
+            Type = "simple";
+            ExecStart = "${pkgs.swaybg}/bin/swaybg -i ${wallpaperPath} -m fill";
+            Restart = "on-failure";
+            PassEnvironment = wmConstants.session.envVars;
+          };
+          Install = {
+            WantedBy = ["graphical-session.target"];
+          };
         };
-        Service = {
-          Type = "simple";
-          ExecStart = "${pkgs.swaybg}/bin/swaybg -i ${wallpaperPath} -m fill";
-          Restart = "on-failure";
-          PassEnvironment = wmConstants.session.envVars;
+
+        # Download service (oneshot, restarts swaybg after download)
+        bing-wallpaper-download = {
+          Unit = {
+            Description = "Bing Wallpaper Download";
+            After = ["network-online.target" "swaybg.service"];
+            Wants = ["network-online.target"];
+          };
+          Service = {
+            Type = "oneshot";
+            ExecStart = "${bingWallpaperDownloadScript}/bin/bing-wallpaper-download";
+            # Restart swaybg after downloading to show new wallpaper
+            ExecStartPost = "${pkgs.systemd}/bin/systemctl --user restart swaybg.service";
+            PassEnvironment = wmConstants.session.envVars ++ ["XDG_RUNTIME_DIR" "HOME"];
+          };
         };
-        Install = {
-          WantedBy = ["graphical-session.target"];
-        };
-      };
-      
-      # Download service (oneshot, restarts swaybg after download)
-      systemd.user.services.bing-wallpaper-download = {
-        Unit = {
-          Description = "Bing Wallpaper Download";
-          After = ["network-online.target" "swaybg.service"];
-          Wants = ["network-online.target"];
-        };
-        Service = {
-          Type = "oneshot";
-          ExecStart = "${bingWallpaperDownloadScript}/bin/bing-wallpaper-download";
-          # Restart swaybg after downloading to show new wallpaper
-          ExecStartPost = "${pkgs.systemd}/bin/systemctl --user restart swaybg.service";
-          PassEnvironment = wmConstants.session.envVars ++ ["XDG_RUNTIME_DIR" "HOME"];
+
+        # Download wallpaper on login (after a delay to ensure network is ready)
+        bing-wallpaper-on-login = {
+          Unit = {
+            Description = "Download Bing Wallpaper on Login";
+            After = ["graphical-session.target" "network-online.target" "swaybg.service"];
+            Wants = ["network-online.target"];
+          };
+          Service = {
+            Type = "oneshot";
+            ExecStartPre = "${pkgs.coreutils}/bin/sleep 5";
+            ExecStart = "${bingWallpaperDownloadScript}/bin/bing-wallpaper-download";
+            ExecStartPost = "${pkgs.systemd}/bin/systemctl --user restart swaybg.service";
+            PassEnvironment = wmConstants.session.envVars ++ ["XDG_RUNTIME_DIR" "HOME"];
+          };
+          Install = {
+            WantedBy = ["graphical-session.target"];
+          };
         };
       };
 
-      # Timer for daily downloads
-      systemd.user.timers.bing-wallpaper-download = {
-        Unit = {
-          Description = "Daily Bing Wallpaper Download";
-        };
-        Timer = {
-          OnCalendar = "daily";
-          Persistent = true;
-          RandomizedDelaySec = "15m";
-        };
-        Install = {
-          WantedBy = ["timers.target"];
-        };
-      };
-      
-      # Download wallpaper on login (after a delay to ensure network is ready)
-      systemd.user.services.bing-wallpaper-on-login = {
-        Unit = {
-          Description = "Download Bing Wallpaper on Login";
-          After = ["graphical-session.target" "network-online.target" "swaybg.service"];
-          Wants = ["network-online.target"];
-        };
-        Service = {
-          Type = "oneshot";
-          ExecStartPre = "${pkgs.coreutils}/bin/sleep 5";
-          ExecStart = "${bingWallpaperDownloadScript}/bin/bing-wallpaper-download";
-          ExecStartPost = "${pkgs.systemd}/bin/systemctl --user restart swaybg.service";
-          PassEnvironment = wmConstants.session.envVars ++ ["XDG_RUNTIME_DIR" "HOME"];
-        };
-        Install = {
-          WantedBy = ["graphical-session.target"];
+      timers = {
+        # Timer for daily downloads
+        bing-wallpaper-download = {
+          Unit = {
+            Description = "Daily Bing Wallpaper Download";
+          };
+          Timer = {
+            OnCalendar = "daily";
+            Persistent = true;
+            RandomizedDelaySec = "15m";
+          };
+          Install = {
+            WantedBy = ["timers.target"];
+          };
         };
       };
     };
-  }
-]
+  };
+}

@@ -2,7 +2,6 @@
   config,
   lib,
   pkgs,
-  username,
   windowManagerConstants,
   ...
 }: let
@@ -39,8 +38,9 @@
               ++ [
                 "sh -c '${pkgs.coreutils}/bin/sleep ${toString acc.pwaDelay} && ${current.rawCmd}'"
               ];
-            pwaDelay = acc.pwaDelay + 1.5;  # Stagger PWAs by 1.5 seconds each
-            lastDelay = acc.lastDelay;
+            pwaDelay = acc.pwaDelay + 2.5;
+            # FIX 1: Use inherit
+            inherit (acc) lastDelay;
           }
           else {
             # Non-PWA apps launch immediately
@@ -49,15 +49,15 @@
               ++ [
                 current.rawCmd
               ];
-            pwaDelay = acc.pwaDelay;
-            lastDelay = acc.lastDelay;
+            # FIX 2 & 3: Combine into a single inherit statement
+            inherit (acc) pwaDelay lastDelay;
           };
       in
         processEntries newAcc rest;
   in
     processEntries {
       result = [];
-      pwaDelay = 4;  # Start PWAs after 4 seconds, then increment
+      pwaDelay = 4; # Start PWAs after 4 seconds, then increment
       lastDelay = 0;
     }
     entries;

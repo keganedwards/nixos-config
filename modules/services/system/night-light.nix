@@ -1,11 +1,10 @@
 {
   pkgs,
   lib,
-windowManagerConstants, 
-username,
-...
-}:
-let
+  windowManagerConstants,
+  username,
+  ...
+}: let
   monthStr = builtins.replaceStrings ["\n"] [""] (builtins.readFile (pkgs.runCommand "current-month" {} "date +%m > $out"));
   dayStr = builtins.replaceStrings ["\n"] [""] (builtins.readFile (pkgs.runCommand "current-day" {} "date +%d > $out"));
 
@@ -24,113 +23,115 @@ let
 
   latitude = "36";
   longitude = "-79";
-
 in
-lib.mkMerge [
-  {
-    home-manager.users.${username} = {
-                                services.gammastep = {
-      enable = true;
-      temperature = {
-        night = 1000;
-        day = 6500;
-      };
-      provider = "manual";
-      latitude = latitude;
-      longitude = longitude;
-      settings = {
-        general = {
-          adjustment-method = "wayland";
-          brightness-night = "0.1";
-        } // (
-          if isWinterPeriod
-          then {
-            dawn-time = "06:00-07:00";
-            dusk-time = "19:00-19:15";
-          }
-          else {}
-        );
-      };
-    };
-
-    services.wluma = {
-      enable = true;
-      settings = {
-        als.time = {
-          thresholds =
-            if isWinterPeriod
-            then {
-              "0" = "night";
-              "7" = "day";
-              "19" = "night";
-            }
-            else {
-              "0" = "night";
-              "7" = "day";
-              "sunset" = "night";
-            };
+  lib.mkMerge [
+    {
+      home-manager.users.${username} = {
+        services.gammastep = {
+          enable = true;
+          temperature = {
+            night = 1000;
+            day = 6500;
+          };
+          provider = "manual";
+          inherit latitude longitude;
+          settings = {
+            general =
+              {
+                adjustment-method = "wayland";
+                brightness-night = "0.1";
+              }
+              // (
+                if isWinterPeriod
+                then {
+                  dawn-time = "06:00-07:00";
+                  dusk-time = "19:00-19:15";
+                }
+                else {}
+              );
+          };
         };
 
-        output.backlight = [{
-          name = "eDP-1";
-          path = "/sys/class/backlight/intel_backlight";
-          capturer = "wayland";
-
-          predictor.manual = {
-            thresholds = {
-              night = {
-                "0" = 0;
-                "25" = 40;
-                "50" = 60;
-                "75" = 75;
-                "100" = 90;
-              };
-              day = {
-                "0" = 0;
-                "25" = 0;
-                "50" = 0;
-                "75" = 0;
-                "100" = 0;
-              };
-            };
-          };
-        }];
-      };
-    };
-
-    home.packages = [
-      (pkgs.writeShellScriptBin "brightness-control" ''
-        #!/usr/bin/env bash
-        case "$1" in
-          "low")
-            ${pkgs.brightnessctl}/bin/brightnessctl set 5%
-            pkill gammastep 2>/dev/null || true
-            sleep 0.2
-            ${pkgs.gammastep}/bin/gammastep -O 1000 -m wayland &
-            ;;
-          "medium")
-            ${pkgs.brightnessctl}/bin/brightnessctl set 20%
-            pkill gammastep 2>/dev/null || true
-            sleep 0.2
-            ${pkgs.gammastep}/bin/gammastep -O 3000 -m wayland &
-            ;;
-          "high")
-            ${pkgs.brightnessctl}/bin/brightnessctl set 60%
-            pkill gammastep 2>/dev/null || true
-            ;;
-          "auto")
-            ${pkgs.brightnessctl}/bin/brightnessctl set 60%
-            pkill gammastep 2>/dev/null || true
-            sleep 0.5
-            systemctl --user restart gammastep
-            ;;
-        esac
-      '')
-    ];
-                };
+        services.wluma = {
+          enable = true;
+          settings = {
+            als.time = {
+              thresholds =
+                if isWinterPeriod
+                then {
+                  "0" = "night";
+                  "7" = "day";
+                  "19" = "night";
                 }
-  (windowManagerConstants.setKeybinding "Shift+F3" "exec brightness-control low")
-  (windowManagerConstants.setKeybinding "Shift+F4" "exec brightness-control medium")
-  (windowManagerConstants.setKeybinding "Shift+F5" "exec brightness-control high")
-  (windowManagerConstants.setKeybinding "Shift+F6" "exec brightness-control auto")
-]
+                else {
+                  "0" = "night";
+                  "7" = "day";
+                  "sunset" = "night";
+                };
+            };
+
+            output.backlight = [
+              {
+                name = "eDP-1";
+                path = "/sys/class/backlight/intel_backlight";
+                capturer = "wayland";
+
+                predictor.manual = {
+                  thresholds = {
+                    night = {
+                      "0" = 0;
+                      "25" = 40;
+                      "50" = 60;
+                      "75" = 75;
+                      "100" = 90;
+                    };
+                    day = {
+                      "0" = 0;
+                      "25" = 0;
+                      "50" = 0;
+                      "75" = 0;
+                      "100" = 0;
+                    };
+                  };
+                };
+              }
+            ];
+          };
+        };
+
+        home.packages = [
+          (pkgs.writeShellScriptBin "brightness-control" ''
+            #!/usr/bin/env bash
+            case "$1" in
+              "low")
+                ${pkgs.brightnessctl}/bin/brightnessctl set 5%
+                pkill gammastep 2>/dev/null || true
+                sleep 0.2
+                ${pkgs.gammastep}/bin/gammastep -O 1000 -m wayland &
+                ;;
+              "medium")
+                ${pkgs.brightnessctl}/bin/brightnessctl set 20%
+                pkill gammastep 2>/dev/null || true
+                sleep 0.2
+                ${pkgs.gammastep}/bin/gammastep -O 3000 -m wayland &
+                ;;
+              "high")
+                ${pkgs.brightnessctl}/bin/brightnessctl set 60%
+                pkill gammastep 2>/dev/null || true
+                ;;
+              "auto")
+                ${pkgs.brightnessctl}/bin/brightnessctl set 60%
+                pkill gammastep 2>/dev/null || true
+                sleep 0.5
+                systemctl --user restart gammastep
+                ;;
+            esac
+          '')
+        ];
+      };
+    }
+    (windowManagerConstants.setKeybinding "Shift+F3" "exec brightness-control low")
+    (windowManagerConstants.setKeybinding "Shift+F4" "exec brightness-control medium")
+    (windowManagerConstants.setKeybinding "Shift+F5" "exec brightness-control high")
+    (windowManagerConstants.setKeybinding "Shift+F6" "exec brightness-control auto")
+  ]

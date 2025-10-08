@@ -7,7 +7,7 @@
       playerArgs = "--title=${playerTitle} --player-operation-mode=pseudo-gui --save-position-on-quit --keep-open=yes";
     in "exec ${mediaPlayerConstants.bin} ${playerArgs} --idle=yes";
 
-    appId = mediaPlayerConstants.appId;
+    inherit (mediaPlayerConstants) appId;
 
     desktopFile = {
       generate = true;

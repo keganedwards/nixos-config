@@ -2,8 +2,8 @@
   pkgs,
   username,
   flakeDir,
-terminalConstants,  
-...
+  terminalConstants,
+  ...
 }: let
   definitionsDir = "${flakeDir}/modules/home-manager/apps/definitions";
 
@@ -179,7 +179,7 @@ terminalConstants,
         echo "  Commit message (empty to amend):"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         IFS= read -r commit_msg
-        
+
         if [ -z "$commit_msg" ]; then
           # Empty message = amend
           ${pkgs.git}/bin/git commit --amend --no-edit --quiet

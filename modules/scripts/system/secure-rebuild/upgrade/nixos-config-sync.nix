@@ -60,7 +60,7 @@
 
     # Check if we can fast-forward
     MERGE_BASE=$(runuser -u ${username} -- $GIT_CMD merge-base HEAD origin/main)
-    
+
     if [ "$MERGE_BASE" != "$LOCAL" ]; then
       log_error "Cannot fast-forward: local branch has diverged from remote"
       log_error "Local:  $LOCAL"
@@ -155,7 +155,7 @@ in {
         User = "root";
         Group = "root";
         Environment = "PATH=${pkgs.git}/bin:${pkgs.openssh}/bin:${pkgs.coreutils}/bin:${pkgs.sshpass}/bin:${pkgs.expect}/bin:/run/current-system/sw/bin";
-        
+
         # Graceful failure
         SuccessExitStatus = "0 1";
         StandardOutput = "journal";

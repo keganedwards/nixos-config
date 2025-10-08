@@ -6,7 +6,7 @@ in {
   swapDevices = [
     {
       device = "/swapfile";
-      size = 25600;  # Size in MB
+      size = 25600; # Size in MB
     }
   ];
 

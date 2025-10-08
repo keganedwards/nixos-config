@@ -1,7 +1,7 @@
 {
   config.rawAppDefinitions."version-control" = {
- type = "web-page";
+    type = "web-page";
     key = "h";
-                url = "https://github.com";
+    url = "https://github.com";
   };
 }

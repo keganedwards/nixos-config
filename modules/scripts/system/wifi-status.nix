@@ -1,8 +1,8 @@
 {
   pkgs,
   lib,
-windowManagerConstants, 
-...
+  windowManagerConstants,
+  ...
 }:
 lib.mkMerge [
   {

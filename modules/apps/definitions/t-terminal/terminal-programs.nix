@@ -1,8 +1,4 @@
-{
-  username,
-  pkgs,
-  ...
-}: {
+{username, ...}: {
   home-manager.users.${username} = {
     programs.wezterm = {
       enable = true;
@@ -18,10 +14,10 @@
 
         -- DISABLE SSH AGENT - this is the fix
         config.mux_enable_ssh_agent = false
-        
+
         -- Also disable multiplexing server to prevent any background persistence
         config.unix_domains = {}
-        
+
         return config
       '';
     };

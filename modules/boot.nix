@@ -143,7 +143,7 @@
             _partitionName: partitionCfg:
               lib.nameValuePair partitionCfg.luksName {
                 device = partitionCfg.devicePath;
-                allowDiscards = partitionCfg.allowDiscards;
+                inherit (partitionCfg) allowDiscards;
                 # Use PCR 0+7 for non-Secure Boot systems
                 crypttabExtraOpts = [
                   "tpm2-device=auto"

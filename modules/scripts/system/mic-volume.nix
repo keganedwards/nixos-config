@@ -1,8 +1,8 @@
 {
   pkgs,
   lib,
-windowManagerConstants,
-...
+  windowManagerConstants,
+  ...
 }:
 lib.mkMerge [
   # 1. The system package for the mic-volume script.

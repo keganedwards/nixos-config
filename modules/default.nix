@@ -2,8 +2,8 @@
   imports = [
     ./apps
     ./boot.nix
-./clipboard-manager.nix
-                ./fonts.nix
+    ./clipboard-manager.nix
+    ./fonts.nix
     ./hardware.nix
     ./i18n.nix
     ./login-manager.nix
@@ -31,7 +31,7 @@
     imports = [
       ./directories.nix
       ./packages-static.nix
-./lock-idle.nix
-                ];
+      ./lock-idle.nix
+    ];
   };
 }

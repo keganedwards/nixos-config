@@ -242,15 +242,17 @@ in {
 
     # For home-manager integration, still provide user-specific settings
     home-manager.users.${username} = {
-      # Link to system mimeapps.list if user doesn't have their own
-      xdg.configFile."mimeapps.list" = lib.mkDefault {
-        source = config.environment.etc."xdg/mimeapps.list".source;
-        force = true;
+      # FIX: Combine all xdg settings into a single block
+      xdg = {
+        enable = true;
+        mime.enable = true;
+        # Link to system mimeapps.list if user doesn't have their own
+        configFile."mimeapps.list" = lib.mkDefault {
+          # FIX: Use inherit for the source assignment
+          inherit (config.environment.etc."xdg/mimeapps.list") source;
+          force = true;
+        };
       };
-
-      # Ensure XDG is enabled
-      xdg.enable = true;
-      xdg.mime.enable = true;
     };
   };
 }

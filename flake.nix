@@ -74,14 +74,14 @@
       };
     };
 
-    # Generate constants for a given system and username
     makeConstants = system: username: let
       pkgs = nixpkgs.legacyPackages.${system};
-      lib = nixpkgs.lib;
+      inherit (nixpkgs) lib;
       allConstants = import ./constants {
         inherit pkgs lib username;
       };
-    in allConstants;
+    in
+      allConstants;
 
     hostArgs = {
       system,
@@ -93,11 +93,10 @@
       constants = makeConstants system username;
     in {
       inherit inputs;
-      inherit self nixpkgs home-manager niri sops-nix nix-flatpak catppuccin nvf system hostname nixos-hardware;
-      inherit username fullName email stateVersion;
+      inherit (inputs) self nixpkgs home-manager niri sops-nix nix-flatpak catppuccin nvf nixos-hardware;
+      inherit system hostname username fullName email stateVersion;
       flakeDir = "/home/${username}/nixos-config";
-      
-      # Pass all constants through specialArgs
+
       windowManagerConstants = constants.windowManager;
       terminalConstants = constants.terminal;
       editorConstants = constants.editor;
@@ -114,8 +113,7 @@
             inherit (hostParams) system;
             inherit hostname;
             username = hostUsername;
-            inherit (userDetails) fullName;
-            inherit (userDetails) email;
+            inherit (userDetails) fullName email;
           };
         in
           nixpkgs.lib.nixosSystem {
@@ -133,7 +131,6 @@
               {programs.nix-index-database.comma.enable = true;}
               nvf.nixosModules.default
               niri.nixosModules.niri
-              # Don't import ./constants anymore - it's handled via specialArgs
               ./modules
               hostParams.path
               {
@@ -153,7 +150,8 @@
       pre-commit-check = pre-commit-hooks.lib.${system}.run {
         src = ./.;
         hooks = {
-          ripsecrets.enable = true;
+          # Swapped ripsecrets for trufflehog
+          trufflehog.enable = true;
           detect-private-keys.enable = true;
           check-added-large-files.enable = true;
           check-case-conflicts.enable = true;
@@ -161,7 +159,7 @@
           check-symlinks.enable = true;
           forbid-new-submodules.enable = true;
           alejandra.enable = true;
-          typos.enable = true;
+          typos.enable = true; # Assumes .typos.toml exists
           statix = {
             enable = true;
             settings.ignore = [

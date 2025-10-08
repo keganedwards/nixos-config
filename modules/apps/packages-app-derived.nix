@@ -2,7 +2,8 @@
   lib,
   pkgs,
   applications,
-}: let  # Remove the '...' since we don't use any other arguments
+}: let
+  # Remove the '...' since we don't use any other arguments
   extractFromApp = appKey: appConfig: let
     appInfo = appConfig.appInfo or (throw "Missing appInfo for ${appKey}");
     installMethod = appInfo.installMethod or (throw "Missing installMethod for ${appKey}");

@@ -1,8 +1,8 @@
 {
   config,
-editorConstants,  
-terminalConstants,
-...
+  editorConstants,
+  terminalConstants,
+  ...
 }: let
   currentEditorExecutable = "${config.programs.nvf.finalPackage}/bin/nvim";
 in {
@@ -18,7 +18,7 @@ in {
       desktopFile = {
         generate = true;
         displayName = "Text Editor";
-        iconName = editorConstants.iconName;
+        inherit (editorConstants) iconName;
         defaultAssociations = [
           "text/plain"
           "text/markdown"

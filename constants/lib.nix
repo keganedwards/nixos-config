@@ -4,7 +4,7 @@
 }: {
   windowManagerConstants = {
     name = "niri";
-    
+
     # Core commands
     msg = "${pkgs.niri}/bin/niri msg";
     reload = "${pkgs.niri}/bin/niri msg reload-config";
@@ -16,7 +16,7 @@
 
     # Helper to set keybindings - returns an attrset that can be merged
     setKeybinding = key: command: {
-      programs.niri.settings.binds.${key}.action.spawn = 
+      programs.niri.settings.binds.${key}.action.spawn =
         if builtins.isList command
         then command
         else ["sh" "-c" command];
@@ -24,12 +24,14 @@
 
     # Helper to set multiple keybindings - properly formatted for niri
     setKeybindings = bindings: {
-      programs.niri.settings.binds = lib.mapAttrs (key: cmd: {
-        action.spawn = 
-          if builtins.isList cmd
-          then cmd
-          else ["sh" "-c" cmd];
-      }) bindings;
+      programs.niri.settings.binds =
+        lib.mapAttrs (_key: cmd: {
+          action.spawn =
+            if builtins.isList cmd
+            then cmd
+            else ["sh" "-c" cmd];
+        })
+        bindings;
     };
 
     # Helper to set extraConfig (for niri this is raw config text)
@@ -39,12 +41,14 @@
 
     # Helper to set startup commands
     setStartup = commands: {
-      programs.niri.settings.spawn-at-startup = 
-        map (cmd: 
-          if builtins.isAttrs cmd && cmd ? command 
-          then {command = ["sh" "-c" cmd.command];}
-          else {command = ["sh" "-c" cmd];}
-        ) commands;
+      programs.niri.settings.spawn-at-startup =
+        map (
+          cmd:
+            if builtins.isAttrs cmd && cmd ? command
+            then {command = ["sh" "-c" cmd.command];}
+            else {command = ["sh" "-c" cmd];}
+        )
+        commands;
     };
 
     # Window rules and criteria helpers
@@ -81,16 +85,16 @@
     name = "wezterm";
     package = pkgs.wezterm;
     bin = "${pkgs.wezterm}/bin/wezterm";
-    
+
     # Launch command for regular terminal instances
     defaultLaunchCmd = "${pkgs.wezterm}/bin/wezterm start";
-    
+
     # Launch command when you need a custom app ID
     launchWithAppId = appId: "${pkgs.wezterm}/bin/wezterm start --class ${appId}";
-    
+
     # Whether this terminal supports custom app IDs
     supportsCustomAppId = true;
-    
+
     # Default app ID for terminal windows (wezterm uses org.wezfurlong.wezterm by default)
     defaultAppId = "org.wezfurlong.wezterm";
   };

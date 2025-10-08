@@ -1,10 +1,10 @@
 {
   lib,
   pkgs,
-browserConstants,
-terminalConstants,
-mediaPlayerConstants,
-...
+  browserConstants,
+  terminalConstants,
+  mediaPlayerConstants,
+  ...
 }: {
   options.appHelpers = lib.mkOption {
     type = lib.types.attrs;
@@ -44,7 +44,7 @@ mediaPlayerConstants,
         appIdFromArgs = args.appId or browser.defaultWmClass;
         userLaunchCommand = args.launchCommand or null;
         userCommandArgs = args.commandArgs or "";
-        
+
         noProto = lib.removePrefix "https://" (lib.removePrefix "http://" url);
         host = builtins.elemAt (lib.splitString "/" noProto) 0;
         derivedDisplayName = "Web: ${host}";
@@ -131,10 +131,10 @@ mediaPlayerConstants,
           else name;
 
         baseAppId = sanitize name "unknown-app";
-        
+
         # Determine if we need a custom app ID for terminal apps
         needsCustomTerminalAppId = isTerminalApp && appIdFromArgs != null;
-        
+
         appId =
           if appIdFromArgs != null
           then appIdFromArgs
@@ -145,7 +145,7 @@ mediaPlayerConstants,
         defaultLaunchCommand =
           if isTerminalApp
           then let
-            termCmd = 
+            termCmd =
               if needsCustomTerminalAppId && terminal.supportsCustomAppId
               then terminal.launchWithAppId appId
               else terminal.defaultLaunchCmd;
@@ -161,9 +161,8 @@ mediaPlayerConstants,
           else defaultLaunchCommand;
 
         appInfo = {
-          inherit name appId title installMethod;
+          inherit name appId title installMethod isTerminalApp;
           package = appInfoPackageField;
-          isTerminalApp = isTerminalApp;
         };
       in {
         inherit appInfo;

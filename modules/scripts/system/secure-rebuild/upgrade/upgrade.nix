@@ -12,8 +12,6 @@
   helpers = import ./helpers.nix {
     inherit pkgs config username fullName email;
   };
-
-  sshPassphraseFile = config.sops.secrets."ssh-key-passphrase".path;
   upgradeResultFile = "/var/lib/upgrade-service/last-result";
   batteryThreshold = 30;
 
@@ -53,7 +51,7 @@
       if ! push_to_git; then
         log_warning "Git push failed, continuing with maintenance..."
       fi
-      
+
       wait_for_syncthing
       turn_off_screen
       log_header "Proceeding with final action: $FINAL_ACTION"

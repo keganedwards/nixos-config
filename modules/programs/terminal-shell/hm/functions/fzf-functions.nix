@@ -11,10 +11,9 @@
       "node_modules"
       "__pycache__"
       ".local/share/Trash" # Corrected capitalization
-      ".local/share/Steam"  # Corrected path and capitalization
+      ".local/share/Steam" # Corrected path and capitalization
     ]);
-  in
-  {
+  in {
     # Custom file widget function
     fzf_file_widget_corrected = ''
       set -l file (fd . "$HOME" --type f --hidden \

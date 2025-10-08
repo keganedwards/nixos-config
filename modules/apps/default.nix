@@ -2,17 +2,18 @@
   lib,
   config,
   pkgs,
-  username,
   ...
 }: let
   helpers = config.appHelpers;
 
-  isAppDefinition = value:
+  # FIX 1: Modified function to accept two arguments for direct use in filterAttrs
+  isAppDefinition = _name: value:
     lib.isAttrs value
     && (value ? "type" || value ? "id" || value ? "launchCommand" || value ? "key");
 
   # Get app definitions from config.rawAppDefinitions (set by individual app files)
-  appDefs = lib.filterAttrs (_name: value: isAppDefinition value) (config.rawAppDefinitions or {});
+  # FIX 1: Pass the function directly, removing the lambda
+  appDefs = lib.filterAttrs isAppDefinition (config.rawAppDefinitions or {});
 
   processedApplications = lib.mapAttrs (appKey: rawConf: let
     customLaunchScript =
@@ -23,13 +24,14 @@
       else null;
 
     # Check for blank workspace
-    isBlankWorkspace = 
-      (rawConf.id or null) == null && 
-      (rawConf.appId or null) == null && 
-      (rawConf.title or null) == null &&
-      (rawConf.url or null) == null &&
-      (rawConf.launchCommand or null) == null &&
-      (rawConf.key != null);
+    isBlankWorkspace =
+      (rawConf.id or null)
+      == null
+      && (rawConf.appId or null) == null
+      && (rawConf.title or null) == null
+      && (rawConf.url or null) == null
+      && (rawConf.launchCommand or null) == null
+      && (rawConf.key != null);
 
     autoDetectedType =
       if isBlankWorkspace
@@ -68,7 +70,12 @@
         _wantsNixInstall = appType == "nix";
       }
       // rawConf
-      // (if appType == "web-page" && rawConf ? "url" then {url = rawConf.url;} else {});
+      // (
+        if appType == "web-page" && rawConf ? "url"
+        # FIX 2: Use inherit to make the assignment more concise
+        then {inherit (rawConf) url;}
+        else {}
+      );
 
     helperResult =
       if appType == "blank"

@@ -1,6 +1,5 @@
 # /modules/security.nix
 {
-  config,
   lib,
   pkgs,
   ...
@@ -49,63 +48,66 @@ in {
     };
   };
 
-  # Watch faillock directory for changes
-  systemd.paths.sudo-lockout-watch = {
-    wantedBy = ["multi-user.target"];
-    pathConfig = {
-      PathModified = "/var/lib/faillock";
-      Unit = "sudo-lockout-check.service";
+  # FIX: Combine all systemd configurations into a single block
+  systemd = {
+    # Watch faillock directory for changes
+    paths.sudo-lockout-watch = {
+      wantedBy = ["multi-user.target"];
+      pathConfig = {
+        PathModified = "/var/lib/faillock";
+        Unit = "sudo-lockout-check.service";
+      };
     };
-  };
 
-  # Check for lockouts when faillock directory changes
-  systemd.services.sudo-lockout-check = {
-    description = "Check for sudo lockouts and notify";
-    serviceConfig = {
-      Type = "oneshot";
-      ExecStart = pkgs.writeShellScript "check-lockouts" ''
-        #!${pkgs.bash}/bin/bash
-        set -x
+    # Check for lockouts when faillock directory changes
+    services.sudo-lockout-check = {
+      description = "Check for sudo lockouts and notify";
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = pkgs.writeShellScript "check-lockouts" ''
+          #!${pkgs.bash}/bin/bash
+          set -x
 
-        echo "=== Lockout check started at $(${pkgs.coreutils}/bin/date) ==="
+          echo "=== Lockout check started at $(${pkgs.coreutils}/bin/date) ==="
 
-        ${pkgs.findutils}/bin/find /var/lib/faillock -type f -maxdepth 1 2>/dev/null | while read -r lockfile; do
-          USER=$(${pkgs.coreutils}/bin/basename "$lockfile")
+          ${pkgs.findutils}/bin/find /var/lib/faillock -type f -maxdepth 1 2>/dev/null | while read -r lockfile; do
+            USER=$(${pkgs.coreutils}/bin/basename "$lockfile")
 
-          echo "Checking user: $USER"
+            echo "Checking user: $USER"
 
-          # Count failures
-          FAILURES=$(${pkgs.linux-pam}/bin/faillock --dir /var/lib/faillock --user "$USER" 2>/dev/null | \
-            ${pkgs.gnused}/bin/sed -n '/^[0-9]\{4\}-/p' | \
-            ${pkgs.coreutils}/bin/wc -l)
+            # Count failures
+            FAILURES=$(${pkgs.linux-pam}/bin/faillock --dir /var/lib/faillock --user "$USER" 2>/dev/null | \
+              ${pkgs.gnused}/bin/sed -n '/^[0-9]\{4\}-/p' | \
+              ${pkgs.coreutils}/bin/wc -l)
 
-          echo "User $USER has $FAILURES failed attempts"
+            echo "User $USER has $FAILURES failed attempts"
 
-          if [ "$FAILURES" -ge ${toString maxAttempts} ]; then
-            echo "LOCKOUT THRESHOLD REACHED: User $USER locked after $FAILURES attempts"
+            if [ "$FAILURES" -ge ${toString maxAttempts} ]; then
+              echo "LOCKOUT THRESHOLD REACHED: User $USER locked after $FAILURES attempts"
 
-            USER_ID=$(${pkgs.coreutils}/bin/id -u "$USER" 2>/dev/null || echo "")
-            if [ -n "$USER_ID" ]; then
-              ${pkgs.sudo}/bin/sudo -u "$USER" \
-                DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$USER_ID/bus" \
-                ${pkgs.libnotify}/bin/notify-send -u critical \
-                "SECURITY LOCKOUT" \
-                "Account permanently locked after ${toString maxAttempts} failed sudo attempts." \
-                2>/dev/null || true
+              USER_ID=$(${pkgs.coreutils}/bin/id -u "$USER" 2>/dev/null || echo "")
+              if [ -n "$USER_ID" ]; then
+                ${pkgs.sudo}/bin/sudo -u "$USER" \
+                  DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$USER_ID/bus" \
+                  ${pkgs.libnotify}/bin/notify-send -u critical \
+                  "SECURITY LOCKOUT" \
+                  "Account permanently locked after ${toString maxAttempts} failed sudo attempts." \
+                  2>/dev/null || true
+              fi
             fi
-          fi
-        done
+          done
 
-        echo "=== Lockout check completed ==="
-      '';
+          echo "=== Lockout check completed ==="
+        '';
+      };
     };
-  };
 
-  # Ensure directories exist
-  systemd.tmpfiles.rules = [
-    "d /var/lib/faillock 0755 root root -"
-    "f /var/log/security-lockouts.log 0600 root root -"
-  ];
+    # Ensure directories exist
+    tmpfiles.rules = [
+      "d /var/lib/faillock 0755 root root -"
+      "f /var/log/security-lockouts.log 0600 root root -"
+    ];
+  };
 
   environment.systemPackages = with pkgs; [
     libnotify

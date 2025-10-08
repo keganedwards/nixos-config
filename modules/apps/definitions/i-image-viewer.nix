@@ -1,7 +1,4 @@
-{
-  username,
-  ...
-}: {
+{username, ...}: {
   config.rawAppDefinitions.image-viewer = {
     type = "nix";
     id = "swayimg";

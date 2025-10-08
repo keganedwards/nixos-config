@@ -2,7 +2,6 @@
   config,
   pkgs,
   username,
-  lib,
   ...
 }: let
   wmConstants = config.windowManagerConstants;

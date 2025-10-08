@@ -4,6 +4,6 @@
     id = browserConstants.defaultFlatpakId;
     appId = browserConstants.defaultWmClass;
     key = "b";
-    ignoreWindowAssignment = true;  # This prevents automatic workspace assignment
+    ignoreWindowAssignment = true; # This prevents automatic workspace assignment
   };
 }

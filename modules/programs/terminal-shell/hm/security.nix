@@ -5,7 +5,6 @@
   pkgs,
   username,
   lib,
-  config,
   ...
 }: let
   protectedUsername = "protect-${username}";
