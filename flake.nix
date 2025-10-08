@@ -159,7 +159,7 @@
           check-symlinks.enable = true;
           forbid-new-submodules.enable = true;
           alejandra.enable = true;
-          typos.enable = true; # Assumes .typos.toml exists
+          typos.enable = true; 
           statix = {
             enable = true;
             settings.ignore = [

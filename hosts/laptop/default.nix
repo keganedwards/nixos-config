@@ -28,7 +28,6 @@
 
     imports = [
       ./battery-notifier.nix
-      ./sway.nix
       ./monitors.nix
     ];
   };
