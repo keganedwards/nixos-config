@@ -18,23 +18,22 @@ in {
       hotkey-overlay.skip-at-startup = true;
       binds = {
         "Mod+Alt+W".action.close-window = {};
-
         "Mod+Alt+BracketRight".action.spawn = ["${pkgs.wireplumber}/bin/wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"];
         "Mod+Alt+BracketLeft".action.spawn = ["${pkgs.wireplumber}/bin/wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"];
         "Alt+F10".action.spawn = ["${pkgs.wireplumber}/bin/wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"];
-
         "Alt+F11".action.spawn = ["${pkgs.brightnessctl}/bin/brightnessctl" "set" "5%-"];
         "Alt+F12".action.spawn = ["${pkgs.brightnessctl}/bin/brightnessctl" "set" "5%+"];
-
         "Mod+Alt+Space".action.spawn = ["${pkgs.playerctl}/bin/playerctl" "play-pause"];
         "Mod+Alt+Right".action.spawn = ["${pkgs.playerctl}/bin/playerctl" "next"];
         "Mod+Alt+Left".action.spawn = ["${pkgs.playerctl}/bin/playerctl" "previous"];
-
         "Alt+Shift+Right".action.spawn = ["niri-lock-secure"];
         "Mod+Alt+Shift+S".action.spawn = ["systemctl" "suspend"];
         "Alt+Shift+Down".action.spawn = ["systemctl" "hibernate"];
-
         "Alt+Shift+Escape".action.spawn = ["${niriExitWithBraveKill}"];
+
+        # Window navigation within current workspace
+        "Mod+Tab".action.focus-window-right = {};
+        "Mod+Shift+Tab".action.focus-window-left = {};
 
         # CORRECTED AND VERIFIED: Keybindings for vertical workspace management
         "Super+Ctrl+w".action.focus-workspace-up = {}; # Focus the workspace above

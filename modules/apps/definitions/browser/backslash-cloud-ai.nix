@@ -1,8 +1,8 @@
 {
   config.rawAppDefinitions."cloud-ai" = {
     type = "pwa";
-    id = "https://aistudio.google.com/";
-    appId = "brave-aistudio.google.com__-Default";
+    id = "https://claude.ai/";
+    appId = "brave-claude.ai__-Default";
     key = "backslash";
   };
 }

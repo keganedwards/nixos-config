@@ -12,7 +12,7 @@ let
     ./i-image-viewer.nix
     ./o-screen-recorder.nix
     ./browser/p-private-browser.nix
-    ./browser/backslash-ai-studio-pwa.nix
+    ./browser/backslash-cloud-ai.nix
     ./2-private-messenger.nix
     ./browser/3-discord-pwa.nix
     ./4-sms.nix
