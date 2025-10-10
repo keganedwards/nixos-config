@@ -1,8 +1,8 @@
 {
   config.rawAppDefinitions."cloud-ai" = {
     type = "pwa";
-    id = "https://claude.ai/";
-    appId = "brave-claude.ai__-Default";
+    id = "https://chat.deepseek.com/";
+    appId = "brave-chat.deepseek.com__-Default";
     key = "backslash";
   };
 }
