@@ -4,12 +4,6 @@
     keyboards.default = {
       ids = ["*"];
       settings = {
-        # [main] section - caps lock now handled by niri's xkb config
-        main = {
-          # Removed capslock remapping - let niri handle it as ISO_Level5_Shift
-        };
-
-        # Define bindings within keyd's default 'meta' layer.
         meta = {
           # --- Arrow keys ---
           h = "left";

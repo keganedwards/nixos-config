@@ -12,6 +12,8 @@
   imports = [
     ./workspaces.nix
     ./startup.nix
+
+    ./keybindings.nix
   ];
 
   home-manager.users.${username} = {
@@ -19,7 +21,6 @@
       ./layout.nix
       ./environment.nix
       ./input.nix
-      ./keybindings.nix
     ];
   };
 }

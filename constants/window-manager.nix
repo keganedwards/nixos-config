@@ -9,7 +9,8 @@
     # Core commands
     msg = "${pkgs.niri}/bin/niri msg";
     reload = "${pkgs.niri}/bin/niri msg reload-config";
-    exit = "${pkgs.niri}/bin/niri msg quit";
+    exit = "${pkgs.niri}/bin/niri msg action quit";
+    quit = exit;
 
     # Configuration paths for accessing window manager config
     configPath = ["home-manager" "users" username "programs" "niri" "settings"];
@@ -40,6 +41,13 @@
       }) (lib.mapAttrs' (k: v: lib.nameValuePair (normalizeKeybind k) v) bindings);
     };
 
+    # Helper to set action keybindings (non-spawn actions like screenshot, close-window, etc)
+    setActionKeybindings = bindings: {
+      home-manager.users.${username}.programs.niri.settings.binds = lib.mapAttrs (_key: action: {
+        inherit action;
+      }) (lib.mapAttrs' (k: v: lib.nameValuePair (normalizeKeybind k) v) bindings);
+    };
+
     # Helper to set extraConfig (for niri this is raw config text)
     setExtraConfig = config: {
       home-manager.users.${username}.programs.niri.config = config;
@@ -65,6 +73,11 @@
     # Helper to set complete niri settings (for workspaces etc)
     setSettings = settings: {
       home-manager.users.${username}.programs.niri.settings = settings;
+    };
+
+    # Default niri settings
+    defaultSettings = {
+      hotkey-overlay.skip-at-startup = true;
     };
 
     # Window rules and criteria helpers
@@ -129,6 +142,26 @@
       ];
       desktopName = "niri";
       socketPath = "$XDG_RUNTIME_DIR/niri.socket";
+    };
+
+    # Exit scripts
+    scripts = {
+      # Generic exit script name
+      exitSafe = "wm-exit-safe";
+
+      # Create exit script that kills browser before quitting
+      makeExitWithBrowserKill = browserFlatpakId:
+        pkgs.writeShellScript "wm-exit-with-browser" ''
+          #!${pkgs.bash}/bin/bash
+          ${pkgs.flatpak}/bin/flatpak kill ${browserFlatpakId} 2>/dev/null || true
+          for i in {1..20}; do
+            if ! ${pkgs.flatpak}/bin/flatpak ps --columns=application 2>/dev/null | ${pkgs.ripgrep}/bin/rg -q "${browserFlatpakId}"; then
+              break
+            fi
+            sleep 0.1
+          done
+          ${quit}
+        '';
     };
 
     # Combined config helper
