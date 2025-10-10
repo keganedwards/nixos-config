@@ -122,7 +122,10 @@
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       echo
 
-      NH_FLAGS=(-v)
+      # Set NH_LOG environment variable for tracing
+      export NH_LOG="nh=trace"
+
+      NH_FLAGS=()
       NIX_FLAGS=()
       for arg in "$@"; do
         case "$arg" in
@@ -130,6 +133,7 @@
             NH_FLAGS+=("$arg")
             ;;
           --verbose|-v)
+            # Skip verbose flag as we're using NH_LOG instead
             ;;
           --update-input|-U|--hostname|-H|--specialisation|-s|--out-link|-o|--target-host|--build-host)
             NH_FLAGS+=("$arg")
