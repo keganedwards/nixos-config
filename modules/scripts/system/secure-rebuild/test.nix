@@ -168,7 +168,7 @@
     exit $RESULT
   '';
 in {
-  environment.systemPackages = [
+  environment.systemPackages = with pkgs; [
     nixos-test-build
     nt-wrapper
   ];

@@ -125,15 +125,14 @@
       # Set NH_LOG environment variable for tracing
       export NH_LOG="nh=trace"
 
+      # Initialize empty NH_FLAGS array (no -v by default)
       NH_FLAGS=()
       NIX_FLAGS=()
+
       for arg in "$@"; do
         case "$arg" in
-          --ask|-a|--dry|-n|--no-nom|--update|-u|--no-specialisation|-S)
+          --ask|-a|--dry|-n|--no-nom|--update|-u|--no-specialisation|-S | --verbose|-v)
             NH_FLAGS+=("$arg")
-            ;;
-          --verbose|-v)
-            # Skip verbose flag as we're using NH_LOG instead
             ;;
           --update-input|-U|--hostname|-H|--specialisation|-s|--out-link|-o|--target-host|--build-host)
             NH_FLAGS+=("$arg")
