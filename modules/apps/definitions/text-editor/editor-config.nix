@@ -2,6 +2,7 @@
   environment.systemPackages = [
     pkgs.statix
     pkgs.deadnix
+    pkgs.alejandra
   ];
   programs.nvf = {
     enable = true;

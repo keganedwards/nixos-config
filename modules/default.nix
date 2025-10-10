@@ -31,7 +31,7 @@
     imports = [
       ./directories.nix
       ./packages-static.nix
-      ./lock-idle.nix
+      ./idle-management
     ];
   };
 }
