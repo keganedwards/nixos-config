@@ -6,6 +6,7 @@
     ./fonts.nix
     ./hardware.nix
     ./i18n.nix
+    ./lock-idle.nix
     ./login-manager.nix
     ./networking.nix
     ./nix.nix
@@ -31,7 +32,6 @@
     imports = [
       ./directories.nix
       ./packages-static.nix
-      ./idle-management
     ];
   };
 }
