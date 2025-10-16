@@ -3,7 +3,12 @@
     pkgs.statix
     pkgs.deadnix
     pkgs.alejandra
+    pkgs.gcc
+    pkgs.nodejs
+    pkgs.tree-sitter
+    pkgs.texlive.combined.scheme-small
   ];
+
   programs.nvf = {
     enable = true;
     settings = {

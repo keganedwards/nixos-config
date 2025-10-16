@@ -130,8 +130,8 @@ in
         ];
       };
     }
-    (windowManagerConstants.setKeybinding "Shift+F3" "exec brightness-control low")
-    (windowManagerConstants.setKeybinding "Shift+F4" "exec brightness-control medium")
-    (windowManagerConstants.setKeybinding "Shift+F5" "exec brightness-control high")
-    (windowManagerConstants.setKeybinding "Shift+F6" "exec brightness-control auto")
+    (windowManagerConstants.setKeybinding "Super+Alt+semicolon" "exec brightness-control low")
+    (windowManagerConstants.setKeybinding "Super+Alt+apostrophe" "exec brightness-control medium")
+    (windowManagerConstants.setKeybinding "Super+Alt+period" "exec brightness-control high")
+    (windowManagerConstants.setKeybinding "Super+Alt+backslash" "exec brightness-control auto")
   ]

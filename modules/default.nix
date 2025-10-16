@@ -1,11 +1,15 @@
 {username, ...}: {
   imports = [
     ./apps
+
     ./boot.nix
     ./clipboard-manager.nix
+    ./faillock.nix
     ./fonts.nix
+
     ./hardware.nix
     ./i18n.nix
+    ./lock-idle.nix
     ./login-manager.nix
     ./networking.nix
     ./nix.nix
@@ -15,7 +19,7 @@
     ./security.nix
     ./sops.nix
     ./standard-user.nix
-    ./themeing.nix
+    ./theming.nix
     ./time.nix
     ./virtualization.nix
     ./window-manager
@@ -31,7 +35,6 @@
     imports = [
       ./directories.nix
       ./packages-static.nix
-      ./idle-management
     ];
   };
 }

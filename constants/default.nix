@@ -9,4 +9,6 @@
   editor = import ./editor.nix;
   mediaPlayer = import ./media-player.nix {inherit pkgs;};
   browser = import ./browser.nix;
+  lockscreen = import ./lock-screen.nix {inherit pkgs;};
+  loginManager = import ./login-manager.nix {inherit pkgs;};
 }

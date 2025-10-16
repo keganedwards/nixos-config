@@ -5,13 +5,11 @@
       ids = ["*"];
       settings = {
         meta = {
-          # --- Arrow keys ---
           h = "left";
           j = "down";
           k = "up";
           l = "right";
 
-          # --- Navigation ---
           e = "esc";
           d = "delete";
           y = "home";
@@ -20,7 +18,6 @@
           o = "pagedown";
           i = "insert";
 
-          # --- F-Keys (Meta + Number Row) ---
           "0" = "f10";
           "1" = "f1";
           "2" = "f2";

@@ -11,29 +11,25 @@
   exitWithBrowser = wm.scripts.makeExitWithBrowserKill browser.defaultFlatpakId;
 in {
   imports = [
-    # Spawn-based keybindings
     (wm.setKeybindings {
-      "Mod+Alt+BracketRight" = ["${pkgs.wireplumber}/bin/wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"];
-      "Mod+Alt+BracketLeft" = ["${pkgs.wireplumber}/bin/wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"];
-      "Alt+F10" = ["${pkgs.wireplumber}/bin/wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"];
-      "Alt+F11" = ["${pkgs.brightnessctl}/bin/brightnessctl" "set" "5%-"];
-      "Alt+F12" = ["${pkgs.brightnessctl}/bin/brightnessctl" "set" "5%+"];
-      "Mod+Alt+Space" = ["${pkgs.playerctl}/bin/playerctl" "play-pause"];
-      "Mod+Alt+Right" = ["${pkgs.playerctl}/bin/playerctl" "next"];
-      "Mod+Alt+Left" = ["${pkgs.playerctl}/bin/playerctl" "previous"];
-      "Alt+Shift+Right" = ["niri-lock-secure"];
-      "Mod+Alt+Shift+S" = ["systemctl" "suspend"];
-      "Alt+Shift+Down" = ["systemctl" "hibernate"];
-      "Alt+Shift+Escape" = ["${exitWithBrowser}"];
+      "Super+BracketRight" = ["${pkgs.wireplumber}/bin/wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"];
+      "Super+BracketLeft" = ["${pkgs.wireplumber}/bin/wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"];
+      "Super+m" = ["${pkgs.wireplumber}/bin/wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"];
+      "Super+Shift+minus" = ["${pkgs.brightnessctl}/bin/brightnessctl" "set" "5%-"];
+      "Super+Shift+equal" = ["${pkgs.brightnessctl}/bin/brightnessctl" "set" "5%+"];
+      "Super+p" = ["${pkgs.playerctl}/bin/playerctl" "play-pause"];
+      "Super+period" = ["${pkgs.playerctl}/bin/playerctl" "next"];
+      "Super+comma" = ["${pkgs.playerctl}/bin/playerctl" "previous"];
+      "Super+alt+s" = ["systemctl" "suspend"];
+      "Super+alt+b" = ["systemctl" "hibernate"];
+      "Super+alt+x" = ["${exitWithBrowser}"];
     })
 
-    # Action-based keybindings
     (wm.setActionKeybindings {
-      "Mod+Alt+W" = {close-window = {};};
-      "Mod+Alt+Comma" = {focus-column-left-or-last = {};};
+      "Super+w" = {close-window = {};};
+      "Super+g" = {focus-column-left-or-last = {};};
     })
 
-    # Settings
     (wm.setSettings wm.defaultSettings)
   ];
 

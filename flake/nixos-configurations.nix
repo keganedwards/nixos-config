@@ -51,8 +51,9 @@
       editorConstants = constants.editor;
       mediaPlayerConstants = constants.mediaPlayer;
       browserConstants = constants.browser;
+      lockscreenConstants = constants.lockscreen;
+      loginManagerConstants = constants.loginManager;
     };
-
     nixosConfigurations =
       inputs.nixpkgs.lib.mapAttrs (
         hostname: hostParams: let
@@ -76,10 +77,12 @@
                   substituters = [
                     "https://cache.nixos.org/"
                     "https://pre-commit-hooks.cachix.org"
+                    "https://nvf.cachix.org"
                   ];
                   trusted-public-keys = [
                     "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
                     "pre-commit-hooks.cachix.org-1:Pkk3Panw5AW24TOv6kz3PvLhlH8puAsJTBbOPmBo7Rc="
+                    "nvf.cachix.org-1:GMQWiUhZ6ux9D5CvFFMwnc2nFrUHTeGaXRlVBXo+naI="
                   ];
                 };
               }
