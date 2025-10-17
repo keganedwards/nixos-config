@@ -29,6 +29,7 @@
     ./services
     ./systemd
     ./xdg
+    ./zram.nix
   ];
 
   home-manager.users.${username} = {

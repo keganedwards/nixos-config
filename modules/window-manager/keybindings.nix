@@ -15,8 +15,8 @@ in {
       "Super+BracketRight" = ["${pkgs.wireplumber}/bin/wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"];
       "Super+BracketLeft" = ["${pkgs.wireplumber}/bin/wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"];
       "Super+m" = ["${pkgs.wireplumber}/bin/wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"];
-      "Super+Shift+minus" = ["${pkgs.brightnessctl}/bin/brightnessctl" "set" "5%-"];
-      "Super+Shift+equal" = ["${pkgs.brightnessctl}/bin/brightnessctl" "set" "5%+"];
+      "Super+z" = ["${pkgs.brightnessctl}/bin/brightnessctl" "set" "5%-"];
+      "Super+x" = ["${pkgs.brightnessctl}/bin/brightnessctl" "set" "5%+"];
       "Super+p" = ["${pkgs.playerctl}/bin/playerctl" "play-pause"];
       "Super+period" = ["${pkgs.playerctl}/bin/playerctl" "next"];
       "Super+comma" = ["${pkgs.playerctl}/bin/playerctl" "previous"];
