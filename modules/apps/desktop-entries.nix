@@ -242,10 +242,17 @@ in {
 
     # For home-manager integration, still provide user-specific settings
     home-manager.users.${username} = {
-      # FIX: Combine all xdg settings into a single block
       xdg = {
         enable = true;
-        portal.enable = true;
+        portal = {
+          enable = true;
+          xdgOpenUsePortal = true;
+
+          extraPortals = [pkgs.xdg-desktop-portal-gtk];
+          config.common = {
+            default = "*";
+          };
+        };
         configFile."mimeapps.list" = lib.mkDefault {
           inherit (config.environment.etc."xdg/mimeapps.list") source;
           force = true;
