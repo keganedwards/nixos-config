@@ -245,10 +245,8 @@ in {
       # FIX: Combine all xdg settings into a single block
       xdg = {
         enable = true;
-        mime.enable = true;
-        # Link to system mimeapps.list if user doesn't have their own
+        portal.enable = true;
         configFile."mimeapps.list" = lib.mkDefault {
-          # FIX: Use inherit for the source assignment
           inherit (config.environment.etc."xdg/mimeapps.list") source;
           force = true;
         };

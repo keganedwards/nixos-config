@@ -4,7 +4,6 @@
   ...
 }: {
   services = {
-    # System and background services
     qemuGuest.enable = true;
     spice-vdagentd.enable = true;
     ollama.enable = true;
@@ -13,6 +12,7 @@
     printing.enable = true;
     udisks2.enable = true;
     gnome.gnome-keyring.enable = lib.mkForce false;
+    thermald.enable = true;
   };
 
   home-manager.users.${username}.services.gnome-keyring = {
