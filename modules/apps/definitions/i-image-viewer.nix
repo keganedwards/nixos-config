@@ -1,8 +1,7 @@
-{username, ...}: {
+{
   config.rawAppDefinitions.image-viewer = {
     type = "nix";
-    id = "swayimg";
+    id = "oculante";
     key = "i";
   };
-  config.home-manager.users.${username}.programs.swayimg.enable = true;
 }

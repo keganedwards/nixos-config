@@ -23,7 +23,6 @@ let
     ./browser/9-background-streams-pwa.nix
     ./browser/0-weather-forecast-webapp.nix
     ./s-audio-controller.nix
-    ./d-draw-tool.nix
     ./g-games.nix
     ./browser/h-source-control-pwa.nix
     ./browser/j-job-portal-webapp.nix
