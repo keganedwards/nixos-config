@@ -61,14 +61,15 @@ in {
         programs = {
           git = {
             enable = true;
-            userName = fullName;
-            userEmail = email;
             signing = {
               signByDefault = true;
               format = "ssh";
             };
-            extraConfig = {
-              user.signingkey = "~/.ssh/id_ed25519.pub";
+            settings = {
+              user = {
+                inherit fullName email;
+                signingkey = "~/.ssh/id_ed25519.pub";
+              };
               gpg.ssh.allowedSignersFile = "~/.ssh/allowed_signers";
               init.defaultBranch = "main";
               core.sshCommand = "ssh";
@@ -121,14 +122,15 @@ in {
         home.stateVersion = config.home-manager.users.${username}.home.stateVersion;
         programs.git = {
           enable = true;
-          userName = fullName;
-          userEmail = email;
-          extraConfig = {
+          settings = {
             safe.directory = [
               flakeDir
               "/home/${username}/.dotfiles"
             ];
-            user.signingkey = "/home/${username}/.ssh/id_ed25519.pub";
+            user = {
+              inherit fullName email;
+              signingkey = "/home/${username}/.ssh/id_ed25519.pub";
+            };
             gpg = {
               format = "ssh";
               ssh = {

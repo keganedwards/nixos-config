@@ -7,7 +7,7 @@
 in {
   # Protected user owns the configuration
   home-manager.users.${protectedUsername} = {
-    programs.git.delta.enable = true;
+    programs.delta.enable = true;
   };
 
   # Main user just gets the package
