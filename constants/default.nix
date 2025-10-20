@@ -8,7 +8,7 @@
   terminalShell = import ./terminal-shell.nix {inherit pkgs;};
   editor = import ./editor.nix;
   mediaPlayer = import ./media-player.nix {inherit pkgs;};
-  browser = import ./browser.nix;
+  browser = import ./browser.nix {inherit pkgs;};
   lockscreen = import ./lock-screen.nix {inherit pkgs;};
   loginManager = import ./login-manager.nix {inherit pkgs;};
 }

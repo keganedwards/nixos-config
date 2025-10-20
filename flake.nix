@@ -15,8 +15,8 @@
     nix-flatpak = {
       url = "github:gmodena/nix-flatpak?ref=latest";
     };
-    nvf = {
-      url = "github:notashelf/nvf";
+    nixCats = {
+      url = "github:BirdeeHub/nixCats-nvim";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     sops-nix = {

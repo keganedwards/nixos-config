@@ -100,28 +100,40 @@
     };
 
     # IPC and environment
-    ipc = {
-      # Get list of outputs/monitors
-      getOutputs = "${msg} outputs";
-      # Get windows
-      getWindows = "${msg} windows";
-      # Get workspaces
-      getWorkspaces = "${msg} workspaces";
-      # Focus a specific window
-      focusWindow = id: "${msg} action focus-window --id ${id}";
-      # Focus a workspace by name
-      focusWorkspace = name: "${msg} action focus-workspace \"${name}\"";
 
-      # Helper to check if a workspace ID has any windows
-      workspaceHasWindows = workspaceId: ''
-        if ${msg} windows | ${pkgs.ripgrep}/bin/rg -q "^\s*Workspace ID: ${workspaceId}$"; then
+    ipc = {
+      getOutputs = "${msg} outputs";
+      getWindows = "${msg} windows";
+      getWorkspaces = "${msg} workspaces";
+
+      # Simplified using JSON
+      getWorkspaceId = name: ''
+        ${pkgs.niri}/bin/niri msg --json workspaces | \
+          ${pkgs.jq}/bin/jq -r '.[] | select(.name == "${name}") | .id // ""'
+      '';
+
+      focusWindow = id: "${msg} action focus-window --id ${id}";
+      focusWorkspace = name: "${pkgs.niri}/bin/niri msg action focus-workspace \"${name}\"";
+
+      checkAppRunning = appIdPattern: ''
+        if ${pkgs.niri}/bin/niri msg windows | ${pkgs.ripgrep}/bin/rg -q "App ID: \"${appIdPattern}\""; then
           echo "true"
         else
           echo "false"
         fi
       '';
-    };
 
+      # Much simpler workspace window check using JSON
+      workspaceHasWindows = name: ''
+        has_window=$(${pkgs.niri}/bin/niri msg --json workspaces | \
+          ${pkgs.jq}/bin/jq -r '.[] | select(.name == "${name}") | .active_window_id // "null"')
+        if [ "$has_window" = "null" ]; then
+          echo "false"
+        else
+          echo "true"
+        fi
+      '';
+    };
     # Wallpaper configuration for niri (using swaybg)
     wallpaper = {
       # Set wallpaper using swaybg

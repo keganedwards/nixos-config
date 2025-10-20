@@ -1,5 +1,4 @@
 {
-  appIdForWM = "nvim-editor-terminal";
-  packageName = "neovim";
-  iconName = "nvim";
+  packageName = "neovide";
+  iconName = "neovide";
 }

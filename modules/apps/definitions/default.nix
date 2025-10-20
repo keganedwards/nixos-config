@@ -40,6 +40,7 @@ let
     ./period-network-tui.nix
     ./browser/backspace-file-sync-manager.nix
     ./media-player/_config-media-player.nix
+    ./n-git.nix
   ];
 in {
   imports = appDefinitionOutputs;

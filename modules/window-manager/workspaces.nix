@@ -3,58 +3,89 @@
   lib,
   pkgs,
   windowManagerConstants,
+  browserConstants,
   ...
 }: let
   wmConstants = windowManagerConstants;
+  browser = browserConstants;
   processedApps = config.applications or {};
 
-  allWorkspaceNames =
-    lib.unique (lib.filter (name: name != null)
-      (lib.mapAttrsToList (_: appConfig: appConfig.workspaceName or appConfig.key or null) processedApps));
-  sortedWorkspaceNames = lib.sort (a: b: a < b) allWorkspaceNames;
+  # Helper to make workspace names unambiguous (prefix numeric ones)
+  makeWorkspaceName = name:
+    if name != null && builtins.match "^[0-9]+$" name != null
+    then "ws-${name}" # Prefix numeric names with "ws-" to avoid index confusion
+    else name;
 
-  workspaceNameToId = lib.listToAttrs (lib.imap1 (idx: name: {
-      inherit name;
-      value = idx;
-    })
-    sortedWorkspaceNames);
+  allWorkspaceNames = lib.unique (lib.filter (name: name != null)
+    (lib.mapAttrsToList (
+        _: appConfig:
+          makeWorkspaceName (appConfig.workspaceName or appConfig.key or null)
+      )
+      processedApps));
+  sortedWorkspaceNames = lib.sort (a: b: a < b) allWorkspaceNames;
 
   mkWorkspaceScript = workspaceName: appConfig: let
     launchCmd = appConfig.launchCommand or null;
     isBlankWorkspace = launchCmd == null;
-    workspaceId = workspaceNameToId.${workspaceName} or 999;
 
     scriptContent =
       if isBlankWorkspace
       then ''
         #!${pkgs.runtimeShell}
-        ${wmConstants.ipc.focusWorkspace workspaceName}
+        # Focus the workspace by name
+        ${pkgs.niri}/bin/niri msg action focus-workspace "${workspaceName}"
       ''
       else ''
         #!${pkgs.runtimeShell}
         set -e
 
-        ${wmConstants.ipc.focusWorkspace workspaceName}
+        # Focus the workspace by name
+        ${pkgs.niri}/bin/niri msg action focus-workspace "${workspaceName}"
 
+        # Force launch mode
         if [ "$FORCE_LAUNCH" = "1" ]; then
           ${launchCmd}
           exit 0
         fi
 
-        has_windows=$(${wmConstants.ipc.workspaceHasWindows "${toString workspaceId}"})
+        # Check if the current (now focused) workspace has any windows
+        current_workspace_info=$(${pkgs.niri}/bin/niri msg --json workspaces | \
+          ${pkgs.jq}/bin/jq -r '.[] | select(.is_focused == true)')
 
-        if [ "$has_windows" = "false" ]; then
+        has_window=$(echo "$current_workspace_info" | ${pkgs.jq}/bin/jq -r '.active_window_id // "null"')
+
+        if [ "$has_window" = "null" ]; then
           ${launchCmd}
         fi
       '';
   in
     pkgs.writeScriptBin "goto-workspace-${lib.strings.sanitizeDerivationName workspaceName}" scriptContent;
 
+  mkBrowserWorkspaceScript = workspaceName:
+    pkgs.writeScriptBin "browser-to-${lib.strings.sanitizeDerivationName workspaceName}" ''
+      #!${pkgs.runtimeShell}
+      set -e
+
+      # Focus the workspace by name
+      ${pkgs.niri}/bin/niri msg action focus-workspace "${workspaceName}"
+
+      # Check if the current (now focused) workspace has any windows
+      current_workspace_info=$(${pkgs.niri}/bin/niri msg --json workspaces | \
+        ${pkgs.jq}/bin/jq -r '.[] | select(.is_focused == true)')
+
+      has_window=$(echo "$current_workspace_info" | ${pkgs.jq}/bin/jq -r '.active_window_id // "null"')
+
+      if [ "$has_window" = "null" ]; then
+        ${browser.launchCommand} &
+      fi
+    '';
+
   generatedWMConfigsPerApp =
     lib.mapAttrsToList (
       _appKeyFromConfig: appConfig: let
         bindingKey = appConfig.key or null;
-        workspaceName = appConfig.workspaceName or bindingKey;
+        # Apply the prefix transformation here
+        workspaceName = makeWorkspaceName (appConfig.workspaceName or bindingKey);
         appIdCriteria = appConfig.appId or null;
         launchCmd = appConfig.launchCommand or null;
         ignoreWindowAssignment = appConfig.ignoreWindowAssignment or false;
@@ -113,14 +144,35 @@
   allKeybindings = lib.foldl lib.recursiveUpdate {} (map (cfg: cfg.keybindings or {}) generatedWMConfigsPerApp);
   allWindowRules = lib.flatten (map (cfg: cfg.windowRules or []) generatedWMConfigsPerApp);
   allScripts = lib.flatten (map (cfg: cfg.scripts or []) generatedWMConfigsPerApp);
+
+  browserWorkspaceScripts = lib.map mkBrowserWorkspaceScript sortedWorkspaceNames;
+
+  browserKeybindings = lib.listToAttrs (
+    lib.imap0 (idx: workspaceName: {
+      name = "ISO_Level5_Shift+Control+${
+        # Use the original key for the keybinding, not the transformed workspace name
+        lib.replaceStrings ["ws-"] [""] workspaceName
+      }";
+      value.action.spawn = [
+        "${lib.elemAt browserWorkspaceScripts idx}/bin/browser-to-${lib.strings.sanitizeDerivationName workspaceName}"
+      ];
+    })
+    sortedWorkspaceNames
+  );
 in
   lib.mkMerge [
     {
-      environment.systemPackages = allScripts ++ [pkgs.ripgrep];
+      environment.systemPackages =
+        allScripts
+        ++ browserWorkspaceScripts
+        ++ [
+          pkgs.ripgrep
+          pkgs.jq # Add jq for JSON parsing
+        ];
     }
 
     (wmConstants.setSettings {
-      binds = allKeybindings;
+      binds = lib.recursiveUpdate allKeybindings browserKeybindings;
       window-rules = allWindowRules;
       workspaces = lib.genAttrs sortedWorkspaceNames (_name: {});
     })

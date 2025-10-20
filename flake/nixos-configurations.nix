@@ -41,7 +41,7 @@
       constants = makeConstants system username;
     in {
       inherit inputs;
-      inherit (inputs) self nixpkgs home-manager niri sops-nix nix-flatpak catppuccin nvf nixos-hardware;
+      inherit (inputs) self nixpkgs home-manager niri sops-nix nix-flatpak catppuccin nixCats nixos-hardware;
       inherit system hostname username fullName email stateVersion;
       flakeDir = "/home/${username}/nixos-config";
 
@@ -77,12 +77,10 @@
                   substituters = [
                     "https://cache.nixos.org/"
                     "https://pre-commit-hooks.cachix.org"
-                    "https://nvf.cachix.org"
                   ];
                   trusted-public-keys = [
                     "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
                     "pre-commit-hooks.cachix.org-1:Pkk3Panw5AW24TOv6kz3PvLhlH8puAsJTBbOPmBo7Rc="
-                    "nvf.cachix.org-1:GMQWiUhZ6ux9D5CvFFMwnc2nFrUHTeGaXRlVBXo+naI="
                   ];
                 };
               }
@@ -91,8 +89,8 @@
               argsBase.catppuccin.nixosModules.catppuccin
               inputs.nix-index-database.nixosModules.nix-index
               {programs.nix-index-database.comma.enable = true;}
-              inputs.nvf.nixosModules.default
-              inputs.niri.nixosModules.niri
+              argsBase.nixCats.nixosModules.default
+              argsBase.niri.nixosModules.niri
               ../modules
               hostParams.path
               {

@@ -38,55 +38,6 @@
         targetDesktopFilename = null;
       };
 
-      mkWebPageApp = args: let
-        browser = browserConstants;
-        url = args.url or args.id or "";
-        appIdFromArgs = args.appId or browser.defaultWmClass;
-        userLaunchCommand = args.launchCommand or null;
-        userCommandArgs = args.commandArgs or "";
-
-        noProto = lib.removePrefix "https://" (lib.removePrefix "http://" url);
-        host = builtins.elemAt (lib.splitString "/" noProto) 0;
-        derivedDisplayName = "Web: ${host}";
-
-        appInfo = {
-          name = derivedDisplayName;
-          appId = appIdFromArgs;
-          installMethod = "none";
-          package = "browser-webpage";
-          title = null;
-          isTerminalApp = false;
-        };
-
-        # Always add --new-window for web-page type, plus any user command args
-        allCommandArgs = lib.trim ("--new-window " + userCommandArgs);
-
-        defaultLaunchCommand = "exec ${pkgs.flatpak}/bin/flatpak run ${browser.defaultFlatpakId} ${allCommandArgs} ${lib.escapeShellArg url}";
-      in {
-        inherit appInfo;
-        launchCommand =
-          if userLaunchCommand != null
-          then userLaunchCommand
-          else defaultLaunchCommand;
-        desktopFile = lib.recursiveUpdate (mkDefaultDesktopFileAttrs appInfo) (args.desktopFile or {});
-      };
-
-      mkBlankWorkspace = args: let
-        workspaceName = args.workspaceName or args.key or "blank";
-        appInfo = {
-          name = "Blank Workspace ${workspaceName}";
-          appId = null;
-          installMethod = "none";
-          package = "blank-workspace";
-          title = null;
-          isTerminalApp = false;
-        };
-      in {
-        inherit appInfo;
-        launchCommand = null;
-        desktopFile = mkDefaultDesktopFileAttrs appInfo;
-      };
-
       mkApp = args: let
         terminal = terminalConstants;
         mediaPlayer = mediaPlayerConstants;
@@ -132,8 +83,8 @@
 
         baseAppId = sanitize name "unknown-app";
 
-        # Determine if we need a custom app ID for terminal apps
-        needsCustomTerminalAppId = isTerminalApp && appIdFromArgs != null;
+        # Always use custom terminal appId when terminal supports it
+        needsCustomTerminalAppId = isTerminalApp && terminal.supportsCustomAppId;
 
         appId =
           if appIdFromArgs != null
@@ -146,11 +97,11 @@
           if isTerminalApp
           then let
             termCmd =
-              if needsCustomTerminalAppId && terminal.supportsCustomAppId
+              if needsCustomTerminalAppId
               then terminal.launchWithAppId appId
               else terminal.defaultLaunchCmd;
-            fullCmd = "${termCmd} ${lib.escapeShellArg executableToRun} ${finalCommandArgs} \"$@\"";
-          in "exec sh -c '${fullCmd} &'"
+            fullCmd = "${termCmd} ${lib.escapeShellArg executableToRun}${lib.optionalString (finalCommandArgs != "") " ${finalCommandArgs}"}";
+          in "exec sh -c 'nohup setsid ${fullCmd} >/dev/null 2>&1 </dev/null &'"
           else if name == "mpv" && userLaunchCommand == null && mediaPlayer.bin != null
           then "exec ${mediaPlayer.bin}" + lib.optionalString (finalCommandArgs != "") " ${finalCommandArgs}"
           else "exec ${lib.escapeShellArg executableToRun}" + lib.optionalString (finalCommandArgs != "") " ${finalCommandArgs}";
@@ -168,6 +119,54 @@
         inherit appInfo;
         launchCommand = finalLaunchCommand;
         desktopFile = lib.recursiveUpdate (mkDefaultDesktopFileAttrs appInfo) (args.desktopFile or {});
+      };
+
+      mkWebPageApp = args: let
+        browser = browserConstants;
+        url = args.url or args.id or "";
+        appIdFromArgs = args.appId or browser.defaultWmClass;
+        userLaunchCommand = args.launchCommand or null;
+        userCommandArgs = args.commandArgs or "";
+
+        noProto = lib.removePrefix "https://" (lib.removePrefix "http://" url);
+        host = builtins.elemAt (lib.splitString "/" noProto) 0;
+        derivedDisplayName = "Web: ${host}";
+
+        appInfo = {
+          name = derivedDisplayName;
+          appId = appIdFromArgs;
+          installMethod = "none";
+          package = "browser-webpage";
+          title = null;
+          isTerminalApp = false;
+        };
+
+        allCommandArgs = lib.trim ("--new-window " + userCommandArgs);
+
+        defaultLaunchCommand = "exec ${pkgs.flatpak}/bin/flatpak run ${browser.defaultFlatpakId} ${allCommandArgs} ${lib.escapeShellArg url}";
+      in {
+        inherit appInfo;
+        launchCommand =
+          if userLaunchCommand != null
+          then userLaunchCommand
+          else defaultLaunchCommand;
+        desktopFile = lib.recursiveUpdate (mkDefaultDesktopFileAttrs appInfo) (args.desktopFile or {});
+      };
+
+      mkBlankWorkspace = args: let
+        workspaceName = args.workspaceName or args.key or "blank";
+        appInfo = {
+          name = "Blank Workspace ${workspaceName}";
+          appId = null;
+          installMethod = "none";
+          package = "blank-workspace";
+          title = null;
+          isTerminalApp = false;
+        };
+      in {
+        inherit appInfo;
+        launchCommand = null;
+        desktopFile = mkDefaultDesktopFileAttrs appInfo;
       };
 
       mkFlatpakApp = args: let
@@ -214,7 +213,6 @@
         url = args.id or args.url or "";
         appIdFromArgs = args.appId or null;
         userLaunchCommand = args.launchCommand or null;
-        pwaRunnerWmClass = browser.pwaRunnerWmClass or browser.pwaRunnerFlatpakId;
         noProto = lib.removePrefix "https://" (lib.removePrefix "http://" url);
         host = builtins.elemAt (lib.splitString "/" noProto) 0;
         derivedDisplayName = "PWA (${sanitize host "pwa-host"})";
@@ -222,18 +220,18 @@
         appIdForWM =
           if appIdFromArgs != null
           then appIdFromArgs
-          else pwaRunnerWmClass;
+          else browser.defaultWmClass;
 
         appInfo = {
           name = derivedDisplayName;
           appId = appIdForWM;
           installMethod = "flatpak";
-          package = browser.pwaRunnerFlatpakId;
+          package = browser.defaultFlatpakId;
           title = null;
           isTerminalApp = false;
         };
 
-        defaultLaunchCommand = "exec ${pkgs.flatpak}/bin/flatpak run ${browser.pwaRunnerFlatpakId} --app=${lib.escapeShellArg url}";
+        defaultLaunchCommand = "exec ${pkgs.flatpak}/bin/flatpak run ${browser.defaultFlatpakId} --app=${lib.escapeShellArg url}";
       in {
         inherit appInfo;
         launchCommand =
