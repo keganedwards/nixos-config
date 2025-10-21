@@ -36,3 +36,10 @@ end
 
 -- Keymaps should be loaded last
 require("config.keymaps")
+
+
+-- Add to init.lua after other requires
+if nixCats('general') then
+  -- ... existing requires ...
+  require("config.terminal")
+end
