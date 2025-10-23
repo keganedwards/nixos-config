@@ -1,7 +1,7 @@
 {
   rawAppDefinitions.phone-connection = {
     type = "externally-managed";
-    id = "kdeconnect";
+    id = "kdeconnect-app";
     appId = "org.kde.kdeconnect";
     key = "d";
   };

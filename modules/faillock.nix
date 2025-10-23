@@ -16,7 +16,7 @@
     ${pkgs.linux-pam}/bin/faillock --user "$USER" 2>&1 | tee -a ${stateDir}/auth-debug.log
 
     FAIL_COUNT=$(${pkgs.linux-pam}/bin/faillock --user "$USER" 2>/dev/null | \
-      ${pkgs.ripgrep}/bin/rg -c "^20\d{2}-" || echo "0")
+     grep -c "^20\d{2}-" || echo "0")
 
     echo "[$(date)] Failure count: $FAIL_COUNT for $USER" >> ${stateDir}/auth-debug.log
 
@@ -146,29 +146,29 @@ in {
 
   environment.systemPackages = [
     (pkgs.writeShellScriptBin "check-auth-status" ''
-      USER="${username}"
-      echo "=== Account Status ==="
-      STATUS=$(${pkgs.shadow}/bin/passwd -S "$USER" 2>/dev/null)
-      echo "$STATUS"
-      echo "$STATUS" | ${pkgs.ripgrep}/bin/rg -q " L " && echo ">> LOCKED <<" || echo ">> UNLOCKED <<"
+       USER="${username}"
+       echo "=== Account Status ==="
+       STATUS=$(${pkgs.shadow}/bin/passwd -S "$USER" 2>/dev/null)
+       echo "$STATUS"
+      echo "$STATUS" | grep -q " L " && echo ">> LOCKED <<" || echo ">> UNLOCKED <<"
 
-      echo ""
-      echo "=== Failure Count ==="
-      COUNT=$(${pkgs.linux-pam}/bin/faillock --user "$USER" 2>/dev/null | \
-        ${pkgs.ripgrep}/bin/rg -c "^20\d{2}-" || echo "0")
-      echo "Count: $COUNT"
+       echo ""
+       echo "=== Failure Count ==="
+       COUNT=$(${pkgs.linux-pam}/bin/faillock --user "$USER" 2>/dev/null | \
+         grep -c "^20\d{2}-" || echo "0")
+       echo "Count: $COUNT"
 
-      echo ""
-      echo "=== Raw Faillock Output ==="
-      ${pkgs.linux-pam}/bin/faillock --user "$USER" 2>/dev/null | head -10
+       echo ""
+       echo "=== Raw Faillock Output ==="
+       ${pkgs.linux-pam}/bin/faillock --user "$USER" 2>/dev/null | head -10
 
-      echo ""
-      echo "=== Message ==="
-      cat ${stateDir}/auth-lock-$USER.txt 2>/dev/null || echo "None"
+       echo ""
+       echo "=== Message ==="
+       cat ${stateDir}/auth-lock-$USER.txt 2>/dev/null || echo "None"
 
-      echo ""
-      echo "=== Debug Log (last 15) ==="
-      tail -15 ${stateDir}/auth-debug.log 2>/dev/null
+       echo ""
+       echo "=== Debug Log (last 15) ==="
+       tail -15 ${stateDir}/auth-debug.log 2>/dev/null
     '')
 
     (pkgs.writeShellScriptBin "reset-auth-lock" ''

@@ -116,11 +116,11 @@
       focusWorkspace = name: "${pkgs.niri}/bin/niri msg action focus-workspace \"${name}\"";
 
       checkAppRunning = appIdPattern: ''
-        if ${pkgs.niri}/bin/niri msg windows | ${pkgs.ripgrep}/bin/rg -q "App ID: \"${appIdPattern}\""; then
-          echo "true"
-        else
-          echo "false"
-        fi
+        if ${pkgs.niri}/bin/niri msg windows | grep -q "App ID: \"${appIdPattern}\""; then
+           echo "true"
+         else
+           echo "false"
+         fi
       '';
 
       # Much simpler workspace window check using JSON
@@ -167,7 +167,7 @@
           #!${pkgs.bash}/bin/bash
           ${pkgs.flatpak}/bin/flatpak kill ${browserFlatpakId} 2>/dev/null || true
           for i in {1..20}; do
-            if ! ${pkgs.flatpak}/bin/flatpak ps --columns=application 2>/dev/null | ${pkgs.ripgrep}/bin/rg -q "${browserFlatpakId}"; then
+           if ! ${pkgs.flatpak}/bin/flatpak ps --columns=application 2>/dev/null | grep -q "${browserFlatpakId}"; then
               break
             fi
             sleep 0.1

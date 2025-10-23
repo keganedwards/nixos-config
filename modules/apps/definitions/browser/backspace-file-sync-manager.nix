@@ -9,9 +9,6 @@
   };
 
   home-manager.users.${username} = {
-    # ----------------------------------------------------------------
-    # Syncthing Service Configuration
-    # ----------------------------------------------------------------
     services.syncthing = {
       enable = true;
       settings = {
@@ -54,17 +51,14 @@
       };
     };
 
-    # ----------------------------------------------------------------
-    # Syncthing Monitor Service and Timer
-    # ----------------------------------------------------------------
     systemd.user.services.syncthing-monitor = let
       monitorScript = pkgs.writeShellApplication {
         name = "syncthing-monitor-check";
         runtimeInputs = with pkgs; [
-          coreutils # for touch, cat, tail, echo
-          ripgrep # for rg
-          systemd # for journalctl
-          libnotify # for notify-send
+          coreutils
+          gnugrep
+          systemd
+          libnotify
         ];
         text = ''
           #!${pkgs.runtimeShell}
@@ -75,7 +69,7 @@
           LAST_ERROR_FILE="/tmp/syncthing_monitor_last_error_''${USER}"
           touch "$LAST_ERROR_FILE"
 
-          RECENT_ISSUES=$(journalctl --user -u syncthing.service --since "$SINCE_TIME" --no-pager --output=cat | rg -i -E "$ERROR_KEYWORDS" || true)
+          RECENT_ISSUES=$(journalctl --user -u syncthing.service --since "$SINCE_TIME" --no-pager --output=cat | grep -i -E "$ERROR_KEYWORDS" || true)
 
           if [ -n "$RECENT_ISSUES" ]; then
             LAST_LINE=$(echo "$RECENT_ISSUES" | tail -n 1)

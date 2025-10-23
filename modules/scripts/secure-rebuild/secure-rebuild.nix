@@ -1,3 +1,4 @@
+# modules/scripts/secure-rebuild/secure-rebuild.nix
 {
   pkgs,
   username,
@@ -69,7 +70,7 @@
       echo "  Verifying all commits from ''${CURRENT_COMMIT:0:7} to ''${TARGET_COMMIT:0:7}..."
       echo ""
       COMMITS_TO_VERIFY=$(runuser -u ${username} -- ${pkgs.git}/bin/git rev-list --reverse "$CURRENT_COMMIT..$TARGET_COMMIT")
-      if ! echo "$COMMITS_TO_VERIFY" | grep -q "$TARGET_COMMIT"; then
+      if ! echo "$COMMITS_TO_VERIFY" | grep -qF "$TARGET_COMMIT"; then
         COMMITS_TO_VERIFY=$(echo -e "''${COMMITS_TO_VERIFY}\n$TARGET_COMMIT" | grep -v '^$')
       fi
       VERIFIED_COUNT=0
@@ -122,12 +123,10 @@
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       echo
 
-      # Set NH_LOG environment variable for tracing
       export NH_LOG="nh=trace"
 
-      # Initialize empty NH_FLAGS array (no -v by default)
       NH_FLAGS=()
-      NIX_FLAGS=()
+      NIX_FLAGS=("--show-trace")
 
       for arg in "$@"; do
         case "$arg" in

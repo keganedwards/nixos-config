@@ -10,7 +10,7 @@
     ${pkgs.flatpak}/bin/flatpak kill com.brave.Browser 2>/dev/null || true
 
     for i in {1..20}; do
-      if ! ${pkgs.flatpak}/bin/flatpak ps --columns=application 2>/dev/null | ${pkgs.ripgrep}/bin/rg -q "com.brave.Browser"; then
+      if ! ${pkgs.flatpak}/bin/flatpak ps --columns=application 2>/dev/null | ${pkgs.gnugrep}/bin/grep -q "com.brave.Browser"; then
         break
       fi
       sleep 0.1
