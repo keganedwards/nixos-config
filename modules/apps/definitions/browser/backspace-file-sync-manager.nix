@@ -1,10 +1,17 @@
-{username, ...}: {
+{
+  username,
+  pkgs,
+  ...
+}: {
   rawAppDefinitions."file-sync-manager" = {
     type = "pwa";
     key = "backspace";
   };
 
   home-manager.users.${username} = {
+    # ----------------------------------------------------------------
+    # Syncthing Service Configuration
+    # ----------------------------------------------------------------
     services.syncthing = {
       enable = true;
       settings = {
@@ -45,6 +52,67 @@
           };
         };
       };
+    };
+
+    # ----------------------------------------------------------------
+    # Syncthing Monitor Service and Timer
+    # ----------------------------------------------------------------
+    systemd.user.services.syncthing-monitor = let
+      monitorScript = pkgs.writeShellApplication {
+        name = "syncthing-monitor-check";
+        runtimeInputs = with pkgs; [
+          coreutils # for touch, cat, tail, echo
+          ripgrep # for rg
+          systemd # for journalctl
+          libnotify # for notify-send
+        ];
+        text = ''
+          #!${pkgs.runtimeShell}
+          set -euo pipefail
+
+          ERROR_KEYWORDS="error|fail|conflict|insufficient space|stopped|panic"
+          SINCE_TIME="2 minutes ago"
+          LAST_ERROR_FILE="/tmp/syncthing_monitor_last_error_''${USER}"
+          touch "$LAST_ERROR_FILE"
+
+          RECENT_ISSUES=$(journalctl --user -u syncthing.service --since "$SINCE_TIME" --no-pager --output=cat | rg -i -E "$ERROR_KEYWORDS" || true)
+
+          if [ -n "$RECENT_ISSUES" ]; then
+            LAST_LINE=$(echo "$RECENT_ISSUES" | tail -n 1)
+            PREVIOUS_LAST_LINE=$(cat "$LAST_ERROR_FILE")
+
+            if [ "$LAST_LINE" != "$PREVIOUS_LAST_LINE" ]; then
+              notify-send -u critical --expire-time=15000 "Syncthing Issue" "Detected: $LAST_LINE"
+              echo "$LAST_LINE" > "$LAST_ERROR_FILE"
+            fi
+          else
+            echo "" > "$LAST_ERROR_FILE"
+          fi
+        '';
+      };
+    in {
+      Unit = {
+        Description = "Monitor Syncthing journal for errors";
+        After = ["syncthing.service" "graphical-session.target"];
+        PartOf = ["graphical-session.target"];
+      };
+      Service = {
+        Type = "oneshot";
+        ExecStartPre = "${pkgs.systemd}/bin/systemctl --user import-environment DISPLAY DBUS_SESSION_BUS_ADDRESS";
+        ExecStart = "${monitorScript}/bin/syncthing-monitor-check";
+        StandardOutput = "journal";
+        StandardError = "journal";
+      };
+    };
+
+    systemd.user.timers.syncthing-monitor = {
+      Unit.Description = "Periodically check Syncthing journal for issues";
+      Timer = {
+        OnBootSec = "3m";
+        OnUnitActiveSec = "90s";
+        Unit = "syncthing-monitor.service";
+      };
+      Install.WantedBy = ["timers.target"];
     };
   };
 }

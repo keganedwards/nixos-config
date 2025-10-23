@@ -1,17 +1,12 @@
-{
-  # --- Input Device Configuration ---
-  programs.niri.settings.input = {
+{username, ...}: {
+  home-manager.users.${username}.programs.niri.settings.input = {
     keyboard = {
       xkb = {
         layout = "us";
-        options = "lv5:caps_switch"; # Make Caps Lock act as ISO_Level5_Shift
+        options = "lv5:caps_switch";
       };
     };
-    mouse = {
-      accel-profile = "flat";
-    };
-    touchpad = {
-      accel-profile = "flat";
-    };
+    mouse.accel-profile = "flat";
+    touchpad.accel-profile = "flat";
   };
 }

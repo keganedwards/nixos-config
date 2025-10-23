@@ -15,7 +15,7 @@ let
     ./browser/backslash-cloud-ai.nix
     ./2-private-messenger.nix
     ./browser/3-discord-pwa.nix
-    ./4-sms.nix
+    ./4d-phone-connection
     ./browser/5-email-pwa.nix
     ./6-clock.nix
     ./browser/7-cloud-storage-pwa.nix

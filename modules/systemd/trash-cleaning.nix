@@ -1,14 +1,14 @@
 {
   pkgs,
-  config,
+  username,
   ...
 }: let
-  downloadsPath = "${config.home.homeDirectory}/Downloads";
-  screenshotsPath = "${config.home.homeDirectory}/Screenshots";
+  downloadsPath = "/home/${username}/Downloads";
+  screenshotsPath = "/home/${username}/Screenshots";
   cleanupAgeDays = 30;
 
   folderToTrashScript = pkgs.writeShellScript "folder-to-trash-script" ''
-    #!${pkgs.bash}/bin/bash
+    #!${pkgs.bash}/bin/bash  # Corrected from pkgs/bash to pkgs.bash
     set -euo pipefail
 
     echo "Checking '${downloadsPath}' for files older than ${toString cleanupAgeDays} days..."
@@ -20,41 +20,38 @@
     echo "Folder to trash cleanup finished."
   '';
 in {
-  home.packages = [
+  environment.systemPackages = [
     pkgs.fd
-    pkgs.ripgrep
     pkgs.trash-cli
   ];
 
   systemd.user = {
     services."trash-cleanup" = {
-      Unit = {
+      unitConfig = {
         Description = "Clean up Trash files older than ${toString cleanupAgeDays} days";
       };
-      Service = {
+      serviceConfig = {
         Type = "oneshot";
         ExecStart = "${pkgs.trash-cli}/bin/trash-empty ${toString cleanupAgeDays}";
       };
     };
 
     timers."trash-cleanup" = {
-      Unit = {
+      unitConfig = {
         Description = "Run Trash cleanup daily";
       };
-      Timer = {
+      timerConfig = {
         OnCalendar = "daily";
         Persistent = true;
       };
-      Install = {
-        WantedBy = ["timers.target"];
-      };
+      wantedBy = ["timers.target"];
     };
 
     services."folder-to-trash-cleanup" = {
-      Unit = {
+      unitConfig = {
         Description = "Move files older than ${toString cleanupAgeDays} days from Downloads and Screenshots to Trash";
       };
-      Service = {
+      serviceConfig = {
         Type = "oneshot";
         ExecStart = "${folderToTrashScript}";
         StandardOutput = "journal";
@@ -63,16 +60,14 @@ in {
     };
 
     timers."folder-to-trash-cleanup" = {
-      Unit = {
+      unitConfig = {
         Description = "Run Downloads/Screenshots to Trash cleanup daily";
       };
-      Timer = {
+      timerConfig = {
         OnCalendar = "daily";
         Persistent = true;
       };
-      Install = {
-        WantedBy = ["timers.target"];
-      };
+      wantedBy = ["timers.target"];
     };
   };
 }

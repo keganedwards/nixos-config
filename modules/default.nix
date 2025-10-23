@@ -1,12 +1,11 @@
-{username, ...}: {
+{
   imports = [
     ./apps
-
     ./boot.nix
     ./clipboard-manager.nix
+    ./environment.nix
     ./faillock.nix
     ./fonts.nix
-
     ./hardware.nix
     ./i18n.nix
     ./lock-idle.nix
@@ -28,14 +27,7 @@
     ./scripts
     ./services
     ./systemd
-    ./xdg
+    ./xdg.nix
     ./zram.nix
   ];
-
-  home-manager.users.${username} = {
-    imports = [
-      ./directories.nix
-      ./packages-static.nix
-    ];
-  };
 }
