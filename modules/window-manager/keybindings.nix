@@ -22,7 +22,7 @@ in {
       "Super+comma" = ["${pkgs.playerctl}/bin/playerctl" "previous"];
       "Super+alt+s" = ["systemctl" "suspend"];
       "Super+alt+b" = ["systemctl" "hibernate"];
-      "Super+alt+x" = ["${exitWithBrowser}"];
+      "Super+alt+shift+x" = ["${exitWithBrowser}"];
     })
 
     (wm.setActionKeybindings {

@@ -1,3 +1,4 @@
+# /modules/window-manager/workspaces.nix
 {
   config,
   lib,
@@ -10,11 +11,11 @@
   browser = browserConstants;
   processedApps = config.applications or {};
 
-  # Helper to make workspace names unambiguous (prefix numeric ones)
+  # Add ws- prefix to all workspace names for clarity
   makeWorkspaceName = name:
-    if name != null && builtins.match "^[0-9]+$" name != null
-    then "ws-${name}" # Prefix numeric names with "ws-" to avoid index confusion
-    else name;
+    if name != null
+    then "ws-${name}"
+    else null;
 
   allWorkspaceNames = lib.unique (lib.filter (name: name != null)
     (lib.mapAttrsToList (
@@ -33,14 +34,14 @@
       then ''
         #!${pkgs.runtimeShell}
         # Focus the workspace by name
-        ${pkgs.niri}/bin/niri msg action focus-workspace "${workspaceName}"
+        ${wmConstants.msg} action focus-workspace "${workspaceName}"
       ''
       else ''
         #!${pkgs.runtimeShell}
         set -e
 
         # Focus the workspace by name
-        ${pkgs.niri}/bin/niri msg action focus-workspace "${workspaceName}"
+        ${wmConstants.msg} action focus-workspace "${workspaceName}"
 
         # Force launch mode
         if [ "$FORCE_LAUNCH" = "1" ]; then
@@ -49,7 +50,7 @@
         fi
 
         # Check if the current (now focused) workspace has any windows
-        current_workspace_info=$(${pkgs.niri}/bin/niri msg --json workspaces | \
+        current_workspace_info=$(${wmConstants.msg} --json workspaces | \
           ${pkgs.jq}/bin/jq -r '.[] | select(.is_focused == true)')
 
         has_window=$(echo "$current_workspace_info" | ${pkgs.jq}/bin/jq -r '.active_window_id // "null"')
@@ -67,10 +68,10 @@
       set -e
 
       # Focus the workspace by name
-      ${pkgs.niri}/bin/niri msg action focus-workspace "${workspaceName}"
+      ${wmConstants.msg} action focus-workspace "${workspaceName}"
 
       # Check if the current (now focused) workspace has any windows
-      current_workspace_info=$(${pkgs.niri}/bin/niri msg --json workspaces | \
+      current_workspace_info=$(${wmConstants.msg} --json workspaces | \
         ${pkgs.jq}/bin/jq -r '.[] | select(.is_focused == true)')
 
       has_window=$(echo "$current_workspace_info" | ${pkgs.jq}/bin/jq -r '.active_window_id // "null"')
@@ -84,7 +85,6 @@
     lib.mapAttrsToList (
       _appKeyFromConfig: appConfig: let
         bindingKey = appConfig.key or null;
-        # Apply the prefix transformation here
         workspaceName = makeWorkspaceName (appConfig.workspaceName or bindingKey);
         appIdCriteria = appConfig.appId or null;
         launchCmd = appConfig.launchCommand or null;
@@ -149,10 +149,8 @@
 
   browserKeybindings = lib.listToAttrs (
     lib.imap0 (idx: workspaceName: {
-      name = "ISO_Level5_Shift+Control+${
-        # Use the original key for the keybinding, not the transformed workspace name
-        lib.replaceStrings ["ws-"] [""] workspaceName
-      }";
+      # Use the original key (without ws- prefix) for the keybinding
+      name = "ISO_Level5_Shift+Control+${lib.removePrefix "ws-" workspaceName}";
       value.action.spawn = [
         "${lib.elemAt browserWorkspaceScripts idx}/bin/browser-to-${lib.strings.sanitizeDerivationName workspaceName}"
       ];
@@ -167,7 +165,7 @@ in
         ++ browserWorkspaceScripts
         ++ [
           pkgs.ripgrep
-          pkgs.jq # Add jq for JSON parsing
+          pkgs.jq
         ];
     }
 

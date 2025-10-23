@@ -84,7 +84,6 @@
         baseAppId = sanitize name "unknown-app";
 
         # Always use custom terminal appId when terminal supports it
-        needsCustomTerminalAppId = isTerminalApp && terminal.supportsCustomAppId;
 
         appId =
           if appIdFromArgs != null
@@ -95,17 +94,30 @@
 
         defaultLaunchCommand =
           if isTerminalApp
-          then let
-            termCmd =
-              if needsCustomTerminalAppId
-              then terminal.launchWithAppId appId
-              else terminal.defaultLaunchCmd;
-            fullCmd = "${termCmd} ${lib.escapeShellArg executableToRun}${lib.optionalString (finalCommandArgs != "") " ${finalCommandArgs}"}";
-          in "exec sh -c 'nohup setsid ${fullCmd} >/dev/null 2>&1 </dev/null &'"
+          then
+            if userLaunchCommand == null # Only construct if user didn't provide one
+            then let
+              # Use terminal launcher for terminal apps
+              terminalLauncherCmd = "${terminal.terminalLauncher}/bin/terminal-launcher";
+              appIdArg = "--app-id ${appId}";
+              desktopArg =
+                if args.key or null != null
+                then "--desktop ${args.key}"
+                else "";
+              modeArg = "--generic"; # Default to generic mode
+              execCmd = lib.escapeShellArg executableToRun;
+              allArgs = lib.concatStringsSep " " (lib.filter (x: x != "") [
+                modeArg
+                appIdArg
+                desktopArg
+                execCmd
+                finalCommandArgs
+              ]);
+            in "exec ${terminalLauncherCmd} ${allArgs}"
+            else userLaunchCommand
           else if name == "mpv" && userLaunchCommand == null && mediaPlayer.bin != null
           then "exec ${mediaPlayer.bin}" + lib.optionalString (finalCommandArgs != "") " ${finalCommandArgs}"
           else "exec ${lib.escapeShellArg executableToRun}" + lib.optionalString (finalCommandArgs != "") " ${finalCommandArgs}";
-
         finalLaunchCommand =
           if userLaunchCommand != null
           then userLaunchCommand

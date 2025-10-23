@@ -21,6 +21,7 @@
             settings = {
               ignored-words = [
                 "als" # False positive for abbreviation/name
+                "enew" # Nvim command for new empty buffer
               ];
             };
           };

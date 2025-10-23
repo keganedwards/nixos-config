@@ -1,16 +1,17 @@
-{pkgs, ...}: let
-  terminalLauncher = import ./terminal-launcher.nix {inherit pkgs;};
-in {
-  environment.systemPackages = [
-    terminalLauncher
-  ];
+# /modules/apps/definitions/t-terminal/terminal-app.nix
+{terminalConstants, ...}: {
+  environment.systemPackages =
+    [
+      terminalConstants.terminalLauncher
+    ]
+    ++ terminalConstants.supportPackages;
 
   rawAppDefinitions."t-terminal" = {
+    type = "externally-managed";
     key = "t";
-    id = "neovide";
-    appId = "neovide-terminal";
+    appId = terminalConstants.appIds.terminal;
 
-    launchCommand = "${terminalLauncher}/bin/terminal-launcher --terminal";
+    launchCommand = "${terminalConstants.terminalLauncher}/bin/terminal-launcher --terminal --desktop t";
 
     desktopFile = {
       generate = true;

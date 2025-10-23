@@ -4,7 +4,7 @@ let
     ./bracketleft-torrent-music.nix
     ./bracketright-torrent-general.nix
     ./browser/w-writing-assistant-pwa.nix
-    ./text-editor
+    ./e-text-editor
     ./r-document-reader.nix
     ./t-terminal
     ./y-virtualization.nix

@@ -1,22 +1,16 @@
 {nixCats, ...}: let
-  inherit (nixCats) utils; # Changed from: utils = nixCats.utils;
+  inherit (nixCats) utils;
 in {
-  # Configure nixCats using the NixOS module
   nixCats = {
     enable = true;
 
-    # Add overlay for any custom plugins
     addOverlays = [
       (utils.standardPluginOverlay {})
     ];
 
-    # Which package names to install
     packageNames = ["nvim"];
-
-    # Path to your lua configuration
     luaPath = "${./.}/nvim";
 
-    # Define your categories using .replace
     categoryDefinitions.replace = {pkgs, ...}: {
       lspsAndRuntimeDeps = {
         general = with pkgs; [
@@ -32,31 +26,21 @@ in {
         ];
 
         lsp = with pkgs; [
-          # Nix
           nil
           nixd
-          # Lua
           lua-language-server
-          # Python
           pyright
           ruff
           black
-          # TypeScript/JavaScript
           nodePackages.typescript-language-server
           nodePackages.eslint
           prettierd
-          # C#
           omnisharp-roslyn
-          # Java
           jdt-language-server
-          # R
           rPackages.languageserver
-          # Bash
           nodePackages.bash-language-server
           shfmt
-          # Markdown
           marksman
-          # LaTeX
           texlab
         ];
       };
@@ -66,6 +50,9 @@ in {
           # Core
           plenary-nvim
           nvim-web-devicons
+
+          # Lazy loader
+          lze
 
           # UI/Theme
           catppuccin-nvim
@@ -139,41 +126,26 @@ in {
       };
 
       optionalPlugins = {
-        # Plugins you want available but not loaded at startup
+        # Empty - all plugins in startupPlugins for lze to manage
       };
 
       sharedLibraries = {
-        general = with pkgs; [
-          # Add any shared libraries if needed
-        ];
+        general = with pkgs; [];
       };
 
       python3.libraries = {
-        debug = ps:
-          with ps; [
-            debugpy
-          ];
+        debug = ps: with ps; [debugpy];
       };
 
-      extraLuaPackages = {
-        # Empty or minimal lua packages
-      };
-
+      extraLuaPackages = {};
       environmentVariables = {
-        general = {
-          # Any environment variables you want set
-        };
+        general = {};
       };
-
-      extraWrapperArgs = {
-        # Don't add gcc to PATH in wrapper, it causes issues
-      };
+      extraWrapperArgs = {};
     };
 
-    # Package definitions using .replace
     packageDefinitions.replace = {
       nvim = _: {
-        # Changed from: nvim = {...}: {
         settings = {
           wrapRc = true;
           aliases = ["vi" "vim"];
@@ -190,7 +162,6 @@ in {
     };
   };
 
-  # Set as default editor
   environment.variables = {
     EDITOR = "nvim";
     VISUAL = "nvim";

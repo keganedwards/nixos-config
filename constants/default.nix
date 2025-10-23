@@ -1,10 +1,13 @@
+# /constants/default.nix
 {
   pkgs,
   lib,
   username,
-}: {
+}: let
   windowManager = import ./window-manager.nix {inherit pkgs lib;} username;
-  terminal = import ./terminal.nix {inherit pkgs;};
+in {
+  inherit windowManager;
+  terminal = import ./terminal.nix {inherit pkgs windowManager;};
   terminalShell = import ./terminal-shell.nix {inherit pkgs;};
   editor = import ./editor.nix;
   mediaPlayer = import ./media-player.nix {inherit pkgs;};

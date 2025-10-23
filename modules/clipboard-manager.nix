@@ -1,3 +1,4 @@
+# /modules/clipboard-manager.nix
 {
   lib,
   pkgs,
@@ -8,15 +9,18 @@
   clipseExe = lib.getExe pkgs.clipse;
   clipseAppId = "clipse-terminal";
 
-  launchClipseCommand =
-    if terminalConstants.supportsCustomAppId
-    then "${terminalConstants.launchWithAppId clipseAppId} ${clipseExe}"
-    else "${terminalConstants.defaultLaunchCmd} ${clipseExe}";
+  # Use terminal constants to create the wrapper
+  clipseWrapper = terminalConstants.createTerminalWithCommand {
+    appId = clipseAppId;
+    command = clipseExe;
+    autoClose = true;
+  };
 
+  launchClipseCommand = "${clipseWrapper}/bin/terminal-${clipseAppId}";
   startClipseListener = "${clipseExe} --listen";
 in
   windowManagerConstants.withConfig {} {
-    packages = [pkgs.clipse];
+    packages = [pkgs.clipse clipseWrapper];
 
     keybindings = {
       "Mod+Shift+C" = launchClipseCommand;
