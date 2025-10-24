@@ -1,5 +1,5 @@
-{
-  programs.fish.functions = {
+{username, ...}: {
+  home-manager.users."protect-${username}".programs.fish.functions = {
     mkcd = ''
       if test (count $argv) -eq 0
         echo "Usage: mkcd <directory>"

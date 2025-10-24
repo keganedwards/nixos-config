@@ -31,6 +31,7 @@ in {
           marksman
         ];
         nix = with pkgs; [
+          nil
           statix
           deadnix
           alejandra

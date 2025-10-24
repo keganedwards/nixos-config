@@ -1,5 +1,5 @@
-{
-  programs.fish.functions = {
+{username, ...}: {
+  home-manager.users."protect-${username}".programs.fish.functions = {
     haskellEnv = ''
       if test (count $argv) -lt 1
         echo "Usage: haskellEnv <package1> [package2 ...]" >&2

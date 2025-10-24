@@ -20,6 +20,7 @@ end
 
 local servers = {
   nixd = {},
+  nil_ls = {},
   lua_ls = {
     settings = {
       Lua = {
