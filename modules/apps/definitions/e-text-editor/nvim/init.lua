@@ -1,170 +1,129 @@
--- nvim/init.lua
--- Set leader keys
 vim.g.mapleader = "\\"
 vim.g.maplocalleader = "\\"
 
--- Basic options
 require("config.options")
 
--- Always load theme and lualine immediately for visual consistency
-if nixCats('general') then
-  require("config.colorscheme")
-  require("lualine").setup({
-    options = {
-      theme = "catppuccin",
-      component_separators = { left = "", right = "" },
-      section_separators = { left = "", right = "" },
-    },
-  })
-end
+require("config.colorscheme")
+require("config.lualine")
+require("nvim-web-devicons").setup({ default = true })
 
--- Setup lze for lazy loading
 local lze = require("lze")
 
-if nixCats('general') then
-  lze.load({
-    -- Treesitter
-    {
-      "nvim-treesitter",
-      event = "BufReadPost",
-      load = function()
-        require("config.treesitter")
-      end,
+lze.load({
+  {
+    "nvim-treesitter",
+    event = "BufReadPost",
+    config = function()
+      require("config.treesitter")
+    end,
+  },
+  {
+    "indent-blankline.nvim",
+    event = "BufReadPost",
+    config = function()
+      require("ibl").setup({ scope = { enabled = true } })
+    end,
+  },
+  {
+    "which-key.nvim",
+    event = "UIEnter", -- This was changed from "VeryLazy"
+    config = function()
+      require("which-key").setup({ preset = "modern" })
+    end,
+  },
+  {
+    "nvim-autopairs",
+    event = "InsertEnter",
+    config = function()
+      require("config.autopairs")
+    end,
+  },
+  {
+    "Comment.nvim",
+    keys = { { "gc", mode = { "n", "v" } }, { "gb", mode = { "n", "v" } } },
+    config = function()
+      require("Comment").setup({})
+    end,
+  },
+  {
+    "nvim-cmp",
+    event = "InsertEnter",
+    dependencies = {
+      "luasnip",
+      "cmp_luasnip",
+      "cmp-nvim-lsp",
+      "cmp-buffer",
+      "cmp-path",
     },
-    
-    -- Indent blankline
-    {
-      "indent-blankline.nvim",
-      event = "BufReadPost",
-      load = function()
-        require("ibl").setup({ scope = { enabled = true } })
-      end,
+    config = function()
+      require("config.completion")
+    end,
+  },
+  {
+    "conform.nvim",
+    event = "BufWritePre",
+    config = function()
+      require("config.formatting")
+    end,
+  },
+  {
+    "nvim-lspconfig",
+    event = "BufReadPost",
+    config = function()
+      require("config.lsp")
+    end,
+  },
+  {
+    "gitsigns.nvim",
+    event = "BufReadPost",
+    config = function()
+      require("gitsigns").setup({
+        signs = {
+          add = { text = "+" },
+          change = { text = "~" },
+          delete = { text = "_" },
+          topdelete = { text = "‾" },
+          changedelete = { text = "~" },
+        },
+      })
+    end,
+  },
+  {
+    "nvim-dap",
+    dependencies = { "nvim-dap-ui", "nvim-dap-virtual-text", "nvim-dap-python" },
+    keys = {
+      { "\\dc", mode = "n" }, { "\\ds", mode = "n" }, { "\\di", mode = "n" },
+      { "\\du", mode = "n" }, { "\\db", mode = "n" }, { "\\dB", mode = "n" },
     },
-    
-    -- Which-key
-    {
-      "which-key.nvim",
-      event = "UIEnter",
-      load = function()
-        require("which-key").setup({ preset = "modern" })
-      end,
+    config = function()
+      require("config.dap")
+    end,
+  },
+  {
+    "fzf-lua",
+    cmd = { "FzfLua" },
+    keys = {
+      { "\\p", mode = "n" }, { "\\g", mode = "n" },
+      { "\\b", mode = "n" }, { "\\h", mode = "n" },
     },
-    
-    -- Completion
-    {
-      "nvim-cmp",
-      event = "InsertEnter",
-      load = function()
-        require("config.completion")
-      end,
-    },
-    
-    -- FZF with simplified keys
-    {
-      "fzf-lua",
-      cmd = { "FzfLua" },
-      keys = {
-        { "\\p", mode = "n" },
-        { "\\g", mode = "n" },
-        { "\\b", mode = "n" },
-        { "\\h", mode = "n" },
-      },
-      load = function()
-        require("config.fzf")
-      end,
-    },
-    
-    -- Autopairs
-    {
-      "nvim-autopairs",
-      event = "InsertEnter",
-      load = function()
-        require("config.autopairs")
-      end,
-    },
-    
-    -- Comment
-    {
-      "Comment.nvim",
-      keys = {
-        { "gc", mode = { "n", "v" } },
-        { "gb", mode = { "n", "v" } },
-      },
-      load = function()
-        require("config.comment")
-      end,
-    },
-    
-    -- Formatting
-    {
-      "conform.nvim",
-      event = "BufWritePre",
-      load = function()
-        require("config.formatting")
-      end,
-    },
-  })
-end
+    config = function()
+      require("fzf-lua").setup({
+        winopts = { preview = { default = "bat" } },
+      })
+    end,
+  },
+  {
+    "render-markdown.nvim",
+    ft = "markdown",
+    config = function()
+      require("render-markdown").setup({
+        html = { enabled = false },
+        latex = { enabled = false },
+        yaml = { enabled = false },
+      })
+    end,
+  },
+})
 
-if nixCats('lsp') then
-  lze.load({
-    {
-      "nvim-lspconfig",
-      event = "BufReadPost",
-      load = function()
-        require("config.lsp")
-      end,
-    },
-  })
-end
-
-if nixCats('git') then
-  lze.load({
-    {
-      "gitsigns.nvim",
-      event = "BufReadPost",
-      load = function()
-        require("config.git")
-      end,
-    },
-  })
-end
-
-if nixCats('debug') then
-  lze.load({
-    {
-      "nvim-dap",
-      keys = {
-        { "\\dc", mode = "n" },
-        { "\\ds", mode = "n" },
-        { "\\di", mode = "n" },
-        { "\\du", mode = "n" },
-        { "\\db", mode = "n" },
-        { "\\dB", mode = "n" },
-      },
-      load = function()
-        require("config.dap")
-      end,
-    },
-  })
-end
-
-if nixCats('markdown') then
-  lze.load({
-    {
-      "render-markdown.nvim",
-      ft = "markdown",
-      load = function()
-        require("config.markdown")
-      end,
-    },
-  })
-end
-
--- Terminal config (always load)
-if nixCats('general') then
-  require("config.terminal")
-end
-
--- Keymaps
+require("config.terminal")
 require("config.keymaps")
