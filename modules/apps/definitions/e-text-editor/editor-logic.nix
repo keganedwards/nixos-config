@@ -1,4 +1,3 @@
-# /modules/apps/definitions/text-editor/editor-logic.nix
 {
   username,
   terminalConstants,
