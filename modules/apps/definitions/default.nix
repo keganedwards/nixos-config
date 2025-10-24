@@ -6,7 +6,7 @@ let
     ./browser/w-writing-assistant-pwa.nix
     ./e-text-editor
     ./r-document-reader.nix
-    ./t-terminal
+    ./t-terminal.nix
     ./y-virtualization.nix
     ./u-spreadsheet-calculator.nix
     ./i-image-viewer.nix

@@ -20,7 +20,8 @@
   pathCacheFile = "${cacheDir}/secure-paths.txt";
 
   aliasesToExclude =
-    lib.attrNames config.home-manager.users.${protectedUsername}.programs.fish.shellAliases;
+    (lib.attrNames config.home-manager.users.${protectedUsername}.programs.fish.shellAliases)
+    ++ ["nix-shell"];
 
   generateAbbrScript = pkgs.writeShellScript "generate-fish-abbrs" ''
     set -euo pipefail
